@@ -1,0 +1,27 @@
+A clock that displays time with words.
+
+We turn all the words required to display the (approximate) current time.
+Time will be accurate to within five minutes.  First thought was to use the
+five minute time closest to the current time, so we're never more than 2.5
+minutes out.  Another suggestion was to switch to the correct time at every
+five minute boundary, then maintain that to the next five minute boundary.
+Second idea is probably easier to program, and would require less
+explaining to people.
+
+
+Some suggested layouts:
+
+Half Quarter
+Twenty Five Ten
+Past To One Two
+Three Four Five
+Six Seven Eight
+Nine Ten Eleven
+Twelve O'Clock
+
+Ten Quarter Twenty Five
+Half Past To One Two
+Three Four Five Six
+Seven Eight Nine Ten
+Eleven Twelve O'Clock
+
