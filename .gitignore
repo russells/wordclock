@@ -1,0 +1,14 @@
+# QP-nano source directories.
+/qp-nano
+
+# Intermediate output files.
+/wordclock.map
+/wordclock.elf
+/wordclock.bin
+/*.d
+/*.o
+
+# Program file.
+/wordclock.hex
+
+/doc
