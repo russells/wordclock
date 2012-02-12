@@ -25,3 +25,42 @@ Three Four Five Six
 Seven Eight Nine Ten
 Eleven Twelve O'Clock
 
+
+
+IO on the JEDmicro AVR200 board:
+
+PA0 - ADC0, LDR input (swap with PD6, with PCB mod)
+PA1 - FET output
+PA2 - FET output
+PA3 - FET output
+PA4 - FET output
+PA5 - FET output
+PA6 - FET output
+PA7 - FET output
+
+PB0 - FET ouput
+PB1 - FET ouput
+PB2 - FET ouput (INT2, not used for RTC, with PCB mod)
+PB3 - FET ouput
+PB4 -
+PB5 - MOSI, ISP, button
+PB6 - MISO, ISP, button
+PB7 - SCK, ISP, button
+
+PC0 - SCL
+PC1 - SDA
+PC2 - FET output
+PC3 - FET output
+PC4 - FET output
+PC5 - FET output
+PC6 - FET output
+PC7 - FET output
+
+PD0 - RXD
+PD1 - TXD
+PD2 - INT0, from RTC (with PCB mod)
+PD3 -
+PD4 - FET output
+PD5 - FET output
+PD6 - FET output (swap with PA0, with PCB mod)
+PD7 - OC2, LED PWM
