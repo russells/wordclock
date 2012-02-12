@@ -5,6 +5,10 @@
 
 #include "wordclock.h"
 #include "bsp.h"
+#include "qpn_port.h"
+#include "cpu-speed.h"
+
+#include <util/delay.h>
 
 
 /** The only active Wordclock. */
@@ -32,6 +36,16 @@ Q_ASSERT_COMPILE(QF_MAX_ACTIVE == Q_DIM(QF_active) - 1);
 int main(int argc, char **argv)
 {
  startmain:
+
+	DDRA |= (1 << 1);
+	PINA |= (1 << 1);
+	while (1) {
+		PORTA |= (1 << 1);
+		_delay_ms(1500);
+		PORTA &= ~ (1 << 1);
+		_delay_ms(1500);
+	}
+
 	BSP_startmain();
 	wordclock_ctor();
 	BSP_init(); /* initialize the Board Support Package */

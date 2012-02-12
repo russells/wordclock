@@ -29,7 +29,7 @@ QP_SRCDIR = qp-nano/source
 QP_LIBS   =
 EXTRA_LIBS =
 EXTRA_LINK_FLAGS = -Wl,-Map,$(PROGRAMMAPFILE),--cref
-TARGET_MCU = attiny85
+TARGET_MCU = atmega32
 CFLAGS  = -c -gdwarf-2 -std=gnu99 -Os -fsigned-char -fshort-enums \
 	-Wno-attributes \
 	-mmcu=$(TARGET_MCU) -Wall -Werror -o$@ \
