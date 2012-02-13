@@ -19,6 +19,8 @@ Q_DEFINE_THIS_FILE;
 
 static QState wordclockInitial        (struct Wordclock *me);
 static QState wordclockState          (struct Wordclock *me);
+static QState wordclockLEDOnState     (struct Wordclock *me);
+static QState wordclockLEDOffState    (struct Wordclock *me);
 
 
 static QEvent wordclockQueue[4];
@@ -38,26 +40,13 @@ int main(int argc, char **argv)
  startmain:
 
 	serial_init();
-
-	SERIALSTR("\r\n*** Word Clock ***\r\nStarting\r\n");
-
-	DDRA |= (1 << 1);
-	PINA |= (1 << 1);
-	for (int i=0; i<5; i++) {
-		SERIALSTR("LED on\r\n");
-		PORTA |= (1 << 1);
-		_delay_ms(1500);
-		SERIALSTR("LED off\r\n");
-		PORTA &= ~ (1 << 1);
-		_delay_ms(1500);
-	}
+	SERIALSTR_DRAIN("\r\n*** Word Clock ***\r\nStarting\r\n");
 
 	BSP_startmain();
 	wordclock_ctor();
 	BSP_init(); /* initialize the Board Support Package */
 
-	Q_ASSERT(0);
-
+	//Q_ASSERT(0);
 	QF_run();
 
 	goto startmain;
@@ -71,7 +60,7 @@ void wordclock_ctor(void)
 
 static QState wordclockInitial(struct Wordclock *me)
 {
-	return Q_TRAN(&wordclockState);
+	return Q_TRAN(&wordclockLEDOnState);
 }
 
 
@@ -83,4 +72,32 @@ static QState wordclockState(struct Wordclock *me)
 		return Q_HANDLED();
 	}
 	return Q_SUPER(&QHsm_top);
+}
+
+
+static QState wordclockLEDOnState(struct Wordclock *me)
+{
+	switch (Q_SIG(me)) {
+	case Q_ENTRY_SIG:
+		BSP_ledOn();
+		QActive_arm((QActive*)me, 30);
+		return Q_HANDLED();
+	case Q_TIMEOUT_SIG:
+		return Q_TRAN(wordclockLEDOffState);
+	}
+	return Q_SUPER(wordclockState);
+}
+
+
+static QState wordclockLEDOffState(struct Wordclock *me)
+{
+	switch (Q_SIG(me)) {
+	case Q_ENTRY_SIG:
+		BSP_ledOff();
+		QActive_arm((QActive*)me, 30);
+		return Q_HANDLED();
+	case Q_TIMEOUT_SIG:
+		return Q_TRAN(wordclockLEDOnState);
+	}
+	return Q_SUPER(wordclockState);
 }
