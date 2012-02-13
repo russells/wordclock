@@ -42,4 +42,7 @@ void BSP_watchdog(struct Wordclock *me);
 void BSP_startmain();		/* Code to put right at the start of main() */
 void BSP_init(void);
 
+void BSP_ledOn();
+void BSP_ledOff();
+
 #endif	/* bsp_h_INCLUDED */
