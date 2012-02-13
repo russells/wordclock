@@ -6,8 +6,8 @@
 #include "wordclock.h"
 #include "bsp.h"
 #include "qpn_port.h"
+#include "serial.h"
 #include "cpu-speed.h"
-
 #include <util/delay.h>
 
 
@@ -37,11 +37,17 @@ int main(int argc, char **argv)
 {
  startmain:
 
+	serial_init();
+
+	SERIALSTR("\r\n*** Word Clock ***\r\nStarting\r\n");
+
 	DDRA |= (1 << 1);
 	PINA |= (1 << 1);
-	while (1) {
+	for (int i=0; i<5; i++) {
+		SERIALSTR("LED on\r\n");
 		PORTA |= (1 << 1);
 		_delay_ms(1500);
+		SERIALSTR("LED off\r\n");
 		PORTA &= ~ (1 << 1);
 		_delay_ms(1500);
 	}
@@ -49,6 +55,8 @@ int main(int argc, char **argv)
 	BSP_startmain();
 	wordclock_ctor();
 	BSP_init(); /* initialize the Board Support Package */
+
+	Q_ASSERT(0);
 
 	QF_run();
 

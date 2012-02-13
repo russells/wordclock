@@ -1,5 +1,6 @@
 #include "bsp.h"
 #include "wordclock.h"
+#include "serial.h"
 
 
 
@@ -15,7 +16,7 @@ void QF_onIdle(void)
 
 void Q_onAssert(char const Q_ROM * const Q_ROM_VAR file, int line)
 {
-
+	serial_assert(file, line);
 }
 
 
