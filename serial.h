@@ -30,6 +30,7 @@ int  serial_send_rom(char const Q_ROM * const Q_ROM_VAR s);
 int  serial_send_int(unsigned int n);
 int  serial_send_hex_int(unsigned int x);
 int  serial_send_char(char c);
+void serial_drain(void);
 void serial_assert(char const Q_ROM * const Q_ROM_VAR file, int line);
 
 
@@ -44,6 +45,12 @@ void serial_assert(char const Q_ROM * const Q_ROM_VAR file, int line);
 	{							\
 		static const char PROGMEM ss[] = s;		\
 		serial_send_rom(ss);				\
+	}
+
+#define SERIALSTR_DRAIN(s)			\
+	{					\
+		SERIALSTR(s);			\
+		serial_drain();			\
 	}
 
 #endif

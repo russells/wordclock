@@ -172,7 +172,9 @@ int serial_send_char(char c)
 {
 	int available;
 	int sent;
+	uint8_t sreg;
 
+	sreg = SREG;
 	cli();
 	available = sendbuffer_space();
 	if (available >= 1) {
@@ -186,7 +188,7 @@ int serial_send_char(char c)
 	} else {
 		sent = 0;
 	}
-	sei();
+	SREG = sreg;
 	return sent;
 }
 
@@ -317,3 +319,9 @@ int serial_send_hex_int(unsigned int x)
 	return serial_send(bufp);
 }
 
+
+void serial_drain(void)
+{
+	while (sendhead != sendtail)
+		;
+}

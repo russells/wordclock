@@ -11,7 +11,7 @@ enum WordclockSignals {
 	 * Sent for timing, and so we can confirm that the event loop is
 	 * running.
 	 */
-	WATCHDOG_SIGNAL,
+	WATCHDOG_SIGNAL = Q_USER_SIG,
 	MAX_PUB_SIG,
 	MAX_SIG,
 };
