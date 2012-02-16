@@ -30,6 +30,8 @@ struct Wordclock {
 	int presses;
 };
 
+extern struct Wordclock wordclock;
+
 
 /**
  * Call this just before calling QActive_post() or QActive_postISR().

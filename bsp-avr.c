@@ -2,6 +2,8 @@
 #include "wordclock.h"
 #include "serial.h"
 
+#include <avr/wdt.h>
+
 
 static void start_tick_timer(void);
 
@@ -25,7 +27,7 @@ void Q_onAssert(char const Q_ROM * const Q_ROM_VAR file, int line)
 
 void BSP_watchdog(struct Wordclock *me)
 {
-
+	wdt_reset();
 }
 
 
@@ -44,6 +46,8 @@ void BSP_init(void)
 	start_tick_timer();
 
 	sei();
+
+	wdt_enable(WDTO_2S);
 }
 
 
@@ -88,5 +92,12 @@ void BSP_ledOff(void)
 
 SIGNAL(TIMER0_COMP_vect)
 {
+	static volatile uint8_t counter = 0;
+
 	QF_tick();
+	counter++;
+	if (counter >= 17) {
+		QActive_postISR((QActive*)(&wordclock), WATCHDOG_SIGNAL);
+		counter = 0;
+	}
 }
