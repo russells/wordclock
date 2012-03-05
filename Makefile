@@ -69,10 +69,13 @@ tags:
 
 # clean targets...
 
-.PHONY: clean
+.PHONY: clean realclean
 
 clean:
 	-$(RM_RF) $(OBJS) $(PROGRAM) $(HEXPROGRAM) $(PROGRAMMAPFILE) $(BINPROGRAM) $(DEPS)
+
+realclean: clean
+	-$(RM_RF) doc *.d *.o *.elf *.hex *.map *.bin
 
 .PHONY: flash
 flash: $(HEXPROGRAM)
