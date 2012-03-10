@@ -40,7 +40,7 @@ int main(int argc, char **argv)
  startmain:
 
 	serial_init();
-	SERIALSTR_DRAIN("\r\n*** Word Clock ***\r\nStarting\r\n");
+	SERIALSTR_DRAIN("\r\n\r\n\r\n\r\n*** Word Clock ***\r\nStarting\r\n");
 
 	BSP_startmain();
 	wordclock_ctor();
