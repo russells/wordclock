@@ -24,6 +24,9 @@ struct TWI {
 	/** Pointer to the current request.  This must be volatile as it's used
 	    by the TWI interrupt handler. */
 	struct TWIRequest volatile *request;
+	/** Pointer to the second request.  Used when we are doing consecutive
+	    TWI operations. */
+	struct TWIRequest volatile *request2;
 };
 
 

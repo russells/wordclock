@@ -20,6 +20,13 @@ void wordclock_ctor(void);
 struct Wordclock {
 	QActiveNamed super;
 	struct TWIRequest twiRequest;
+	struct TWIRequest twiRequest2;
+	/** This contains the addresses of one or both of the TWIRequests
+	    above.  When we do consecutive TWI operations (which means keeping
+	    control of the bus between the operations and only receiving a
+	    result after both have finished) we fill in both pointers.  For a
+	    single operation, only fill in the first pointer. */
+	struct TWIRequest *twiRequestAddresses[2];
 	uint8_t twiBuffer[9];
 };
 
