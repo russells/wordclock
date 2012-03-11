@@ -1,0 +1,4 @@
+From: Russell Steicke <russells@adelie.cx>
+Subject: Check to see if the clock is running before setting the time.
+
+Signed-off-by: Russell Steicke <russells@adelie.cx>
