@@ -1,0 +1,10 @@
+From: Russell Steicke <russells@adelie.cx>
+Subject: Allow two consecutive TWI operations.
+
+We will very commonly want to do two operations on the DS1307 - write
+to it to set the current register address, then read from that
+register or series of registers.  The TWI way to do such a thing is to
+use a REPEATED START so you don't lose control of the bus between the
+operations, so we allow that.
+
+Signed-off-by: Russell Steicke <russells@adelie.cx>
