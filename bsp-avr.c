@@ -1,8 +1,12 @@
 #include "bsp.h"
 #include "wordclock.h"
 #include "serial.h"
+#include "wordclock-signals.h"
 
 #include <avr/wdt.h>
+
+
+Q_DEFINE_THIS_FILE;
 
 
 static void start_tick_timer(void);
@@ -97,7 +101,8 @@ SIGNAL(TIMER0_COMP_vect)
 	QF_tick();
 	counter++;
 	if (counter >= 17) {
-		QActive_postISR((QActive*)(&wordclock), WATCHDOG_SIGNAL);
+		fff(&wordclock);
+		QActive_postISR((QActive*)(&wordclock), WATCHDOG_SIGNAL, 0);
 		counter = 0;
 	}
 }

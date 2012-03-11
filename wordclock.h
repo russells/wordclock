@@ -2,19 +2,11 @@
 #define wordclock_h_INCLUDED
 
 #include "qpn_port.h"
+#include "qactive-named.h"
+#include "twi.h"
 
 /* Testing - stop the app and busy loop. */
 #define FOREVER for(;;)
-
-enum WordclockSignals {
-	/**
-	 * Sent for timing, and so we can confirm that the event loop is
-	 * running.
-	 */
-	WATCHDOG_SIGNAL = Q_USER_SIG,
-	MAX_PUB_SIG,
-	MAX_SIG,
-};
 
 
 /**
@@ -26,8 +18,9 @@ void wordclock_ctor(void);
 /**
  */
 struct Wordclock {
-	QActive super;
-	int presses;
+	QActiveNamed super;
+	struct TWIRequest twiRequest;
+	uint8_t twiBuffer[9];
 };
 
 extern struct Wordclock wordclock;
@@ -42,6 +35,21 @@ extern struct Wordclock wordclock;
  * know which state machine's queue is full.  If this check is done in user
  * code instead of library code we can tell them apart.
  */
-#define fff(o) Q_ASSERT(((QActive*)(o))->nUsed <= Q_ROM_BYTE(QF_active[((QActive*)(o))->prio].end))
+#define fff(o)								\
+	do {								\
+		QActive *_me = (QActive *)(o);				\
+		QActiveNamed *_men = (QActiveNamed *)(o);		\
+		QActiveCB const Q_ROM *_ao = &QF_active[_me->prio];	\
+		if(_me->nUsed >= Q_ROM_BYTE(_ao->end)) {		\
+			SERIALSTR("\r\nfff( _me=");			\
+			serial_send_hex_int((unsigned int)_me);		\
+			SERIALSTR(",  name=");				\
+			serial_send_hex_int((unsigned int)(_men->name)); \
+			SERIALSTR(", ");				\
+			serial_send_rom(_men->name);			\
+			SERIALSTR_DRAIN(")\r\n");			\
+		}							\
+		Q_ASSERT(_me->nUsed < Q_ROM_BYTE(_ao->end));		\
+	} while (0)
 
 #endif

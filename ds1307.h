@@ -1,0 +1,8 @@
+#ifndef ds1307_h_INCLUDED
+#define ds1307_h_INCLUDED
+
+#define DS1307_ADDRESS 0b1101000
+#define DS1307_ADDRMASK (DS1307_ADDRESS << 1)
+
+
+#endif
