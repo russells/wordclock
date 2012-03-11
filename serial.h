@@ -42,15 +42,15 @@ void serial_assert(char const Q_ROM * const Q_ROM_VAR file, int line);
  * scope, and calls serialstr() to output the string.
  */
 #define SERIALSTR(s)						\
-	{							\
+	do {							\
 		static const char PROGMEM ss[] = s;		\
 		serial_send_rom(ss);				\
-	}
+	} while (0)
 
 #define SERIALSTR_DRAIN(s)			\
-	{					\
+	do {					\
 		SERIALSTR(s);			\
 		serial_drain();			\
-	}
+	} while (0)
 
 #endif

@@ -13,10 +13,10 @@ serial_init(void)
 {
 	cli();
 
-	/* Set the baud rate.  ClockIO = 3.6864MHz, baud = 9600.
+	/* Set the baud rate.  ClockIO = 3.6864MHz, baud = 38400.
 	   doc8161.pdf, p179 and p203. */
 	UBRRH = 0;
-	UBRRL = 23;
+	UBRRL = 5;
 
 	/* Ensure that U2X=0. */
 	UCSRA = 0;

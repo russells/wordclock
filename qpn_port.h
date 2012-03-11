@@ -33,13 +33,13 @@
 #define Q_ROM_PTR(rom_var_)     pgm_read_word_near(&(rom_var_))
 
 #define Q_NFSM
-#define Q_PARAM_SIZE            0 /* The wordclock event has no extra
-				     parameters. */
+#define Q_PARAM_SIZE            2 /* The wordclock event has an extra
+				     parameter. */
 #define QF_TIMEEVT_CTR_SIZE     2 /* 16 bit time counter for wordclock. */
 
 /* maximum # active objects--must match EXACTLY the QF_active[] definition  */
-#define QF_MAX_ACTIVE           1 /* The bikelight has these active objects:
-				     bikelight. */
+#define QF_MAX_ACTIVE           2 /* The wordclock has these active objects:
+				     wordclock, timechip. */
 
                                /* interrupt locking policy for IAR compiler */
 #define QF_INT_LOCK()           cli()

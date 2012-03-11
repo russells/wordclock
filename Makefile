@@ -36,7 +36,7 @@ CFLAGS  = -c -gdwarf-2 -std=gnu99 -Os -fsigned-char -fshort-enums \
 	-I$(QPN_INCDIR) -I.
 LINKFLAGS = -gdwarf-2 -Os -mmcu=$(TARGET_MCU)
 
-SRCS = wordclock.c bsp-avr.c qepn.c qfn.c serial.c
+SRCS = wordclock.c bsp-avr.c qepn.c qfn.c serial.c twi.c twi-status.c
 
 OBJS = $(SRCS:.c=.o)
 DEPS = $(SRCS:.c=.d)
@@ -69,10 +69,13 @@ tags:
 
 # clean targets...
 
-.PHONY: clean
+.PHONY: clean realclean
 
 clean:
 	-$(RM_RF) $(OBJS) $(PROGRAM) $(HEXPROGRAM) $(PROGRAMMAPFILE) $(BINPROGRAM) $(DEPS)
+
+realclean: clean
+	-$(RM_RF) doc *.d *.o *.elf *.hex *.map *.bin
 
 .PHONY: flash
 flash: $(HEXPROGRAM)
