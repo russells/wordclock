@@ -45,10 +45,25 @@ Q_ASSERT_COMPILE(QF_MAX_ACTIVE == Q_DIM(QF_active) - 1);
 
 int main(int argc, char **argv)
 {
+	uint8_t mcucsr;
+
  startmain:
+
+	mcucsr = MCUCSR;
+	MCUCSR = 0;
 
 	serial_init();
 	SERIALSTR_DRAIN("\r\n\r\n\r\n\r\n*** Word Clock ***\r\nStarting\r\n");
+	SERIALSTR("Reset:");
+	if (mcucsr & 0b1000)
+		SERIALSTR(" watchdog");
+	if (mcucsr & 0b0100)
+		SERIALSTR(" brownout");
+	if (mcucsr & 0b0010)
+		SERIALSTR(" external");
+	if (mcucsr & 0b0001)
+		SERIALSTR(" poweron");
+	SERIALSTR_DRAIN("\r\n\r\n");
 
 	BSP_startmain();
 	/* Initialise the TWI first, as the wordclock sends a signal to the twi
