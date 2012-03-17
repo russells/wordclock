@@ -1,0 +1,8 @@
+From: Russell Steicke <russells@adelie.cx>
+Subject: If asked, don't verify the flash memory when programming.
+
+The ATmega32 takes about 50 seconds to program 10kbytes with avrdude,
+and another 50 seconds to verify.  To speed up debugging, we can skip
+the verification step.
+
+Signed-off-by: Russell Steicke <russells@adelie.cx>
