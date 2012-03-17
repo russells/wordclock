@@ -19,8 +19,22 @@ void wordclock_ctor(void);
  */
 struct Wordclock {
 	QActiveNamed super;
-	struct TWIRequest twiRequest;
-	uint8_t twiBuffer[9];
+	struct TWIRequest twiRequest1;
+	struct TWIRequest twiRequest2;
+	/** This contains the addresses of one or both of the TWIRequests
+	    above.  When we do consecutive TWI operations (which means keeping
+	    control of the bus between the operations and only receiving a
+	    result after both have finished) we fill in both pointers.  For a
+	    single operation, only fill in the first pointer. */
+	struct TWIRequest *twiRequestAddresses[2];
+	/** Buffer for data to or from a TWI device.  This is only a single
+	    byte since it will only be used for sending the register address to
+	    the DS1307. */
+	uint8_t twiBuffer1[1];
+	/** Buffer for data to or from a TWI device.  This large enough to send
+	    the register address and the complete register set to the
+	    DS1307. */
+	uint8_t twiBuffer2[9];
 };
 
 extern struct Wordclock wordclock;

@@ -81,6 +81,7 @@ static void twint_MR_address_sent(struct TWI *me);
 static void twint_MT_data_sent(struct TWI *me);
 static void twint_MR_data_received(struct TWI *me);
 
+static void twi_int_error(struct TWI *me, uint8_t status);
 
 static void start_request(struct TWI *);
 
@@ -91,7 +92,9 @@ void twi_ctor(void)
 
 	QActive_ctor((QActive*)(&twi), (QStateHandler)&twiInitial);
 	twi_init();
-	twi.request = 0;
+	twi.requests[0] = 0;
+	twi.requests[1] = 0;
+	twi.requestIndex = 0;
 	SERIALSTR("TWI address==");
 	serial_send_hex_int((unsigned int)(&twi));
 	SERIALSTR(" &name==");
@@ -121,6 +124,7 @@ static QState twiInitial(struct TWI *me)
 
 static QState twiState(struct TWI *me)
 {
+	struct TWIRequest **requestp;
 	struct TWIRequest *request;
 
 	switch (Q_SIG(me)) {
@@ -129,10 +133,18 @@ static QState twiState(struct TWI *me)
 		return Q_HANDLED();
 
 	case TWI_REQUEST_SIGNAL:
-		request = (struct TWIRequest *)Q_PAR(me);
+		requestp = (struct TWIRequest **)Q_PAR(me);
+		Q_ASSERT( requestp );
+		request = *requestp;
 		SERIALSTR("TWI Got TWI_REQUEST_SIGNAL\r\n");
-		Q_ASSERT( ! me->request );
-		me->request = request;
+		Q_ASSERT( request );
+		Q_ASSERT( ! me->requests[0] );
+		me->requests[0] = request;
+		requestp++;
+		request = *requestp;
+		Q_ASSERT( ! me->requests[1] );
+		me->requests[1] = request;
+		me->requestIndex = 0;
 		return Q_TRAN(twiBusyState);
 
 	case Q_TIMEOUT_SIG:
@@ -146,6 +158,10 @@ static QState twiState(struct TWI *me)
 
 static QState twiBusyState(struct TWI *me)
 {
+	uint8_t r;
+	uint8_t sreg;
+
+	struct TWIRequest **requestp;
 	switch (Q_SIG(me)) {
 
 	case Q_ENTRY_SIG:
@@ -155,22 +171,40 @@ static QState twiBusyState(struct TWI *me)
 
 	case Q_EXIT_SIG:
 		SERIALSTR_DRAIN("TWI < twiBusyState\r\n");
+		sreg = SREG;
+		cli();
+		me->requests[0] = 0;
+		me->requests[1] = 0;
+		me->requestIndex = 0;
+		SREG = sreg;
 		return Q_HANDLED();
 
 	case TWI_REQUEST_SIGNAL:
-		me->request->status = TWI_QUEUE_FULL;
 		SERIALSTR_DRAIN("TWI got excess TWI_REQUEST_SIGNAL\r\n");
-		fff(me->request->qactive);
-		QActive_post(me->request->qactive, me->request->signal,
-			     (QParam)me->request);
+		requestp = (struct TWIRequest **)Q_PAR(me);
+		if (requestp[0]) {
+			requestp[0]->status = TWI_QUEUE_FULL;
+			fff(requestp[0]->qactive);
+			QActive_post(requestp[0]->qactive, requestp[0]->signal,
+				     (QParam)requestp[0]);
+		}
+		if (requestp[1]) {
+			requestp[1]->status = TWI_QUEUE_FULL;
+			fff(requestp[1]->qactive);
+			QActive_post(requestp[1]->qactive, requestp[1]->signal,
+				     (QParam)requestp[1]);
+		}
 		return Q_HANDLED();
 
 	case TWI_REPLY_SIGNAL:
 		SERIALSTR_DRAIN("TWI got TWI_REPLY_SIGNAL\r\n");
-		fff(me->request->qactive);
-		QActive_post(me->request->qactive, TWI_REPLY_SIGNAL,
-			     (QParam)me->request);
-		me->request = 0;
+		r = (uint8_t) Q_PAR(me);
+		fff(me->requests[r]->qactive);
+		QActive_post(me->requests[r]->qactive, me->requests[r]->signal,
+			     (QParam)me->requests[r]);
+		return Q_HANDLED();
+
+	case TWI_FINISHED_SIGNAL:
 		return Q_TRAN(twiState);
 
 	}
@@ -178,19 +212,27 @@ static QState twiBusyState(struct TWI *me)
 }
 
 
+/**
+ * Called at the very start of a request.
+ *
+ * The request can be either a single request, or a chain of two.  The chaining
+ * of requests (with a REPEATED START) is handled later in the interrupt
+ * handler.
+ */
 static void start_request(struct TWI *me)
 {
+	Q_ASSERT( ! me->requestIndex );
 	SERIALSTR("TWI addr=");
-	serial_send_hex_int(me->request->address & 0xfe);
-	if (me->request->address & 0b1) {
+	serial_send_hex_int(me->requests[0]->address & 0xfe);
+	if (me->requests[0]->address & 0b1) {
 		SERIALSTR("(r)");
 	} else {
 		SERIALSTR("(w)");
 	}
 	SERIALSTR(" nbytes=");
-	serial_send_int(me->request->nbytes);
+	serial_send_int(me->requests[0]->nbytes);
 	SERIALSTR_DRAIN("\r\n");
-	me->request->count = 0;
+	me->requests[0]->count = 0;
 	send_start(me);
 }
 
@@ -202,6 +244,9 @@ SIGNAL(TWI_vect)
 	counter ++;
 	if (0 == counter)
 		SERIALSTR(",");
+	if (! twi.requests[twi.requestIndex]) {
+		twint = twint_null;
+	}
 	(*twint)(&twi);
 }
 
@@ -245,16 +290,20 @@ static void twint_null(struct TWI *me)
 }
 
 
-static void twi_error(struct TWI *me, uint8_t status)
+/**
+ * Handle an error detected during the interrupt handler.
+ */
+static void twi_int_error(struct TWI *me, uint8_t status)
 {
+	SERIALSTR("<E>");
 	twint = twint_null;
 	/* Transmit a STOP. */
 	TWCR =  (1 << TWINT) |
 		(1 << TWSTO) |
 		(1 << TWEN );
-	me->request->status = status;
+	me->requests[me->requestIndex]->status = status;
 	fff(me);
-	QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL, 0);
+	QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL, me->requestIndex);
 }
 
 
@@ -266,29 +315,26 @@ static void twint_start_sent(struct TWI *me)
 {
 	uint8_t status;
 
-	SERIALSTR("{A");
 	status = TWSR & 0xf8;
 	switch (status) {
 	case TWI_08_START_SENT:
 	case TWI_10_REPEATED_START_SENT:
-		if (me->request->address & 0b1) {
-			SERIALSTR("r");
+		if (me->requests[me->requestIndex]->address & 0b1) {
 			twint = twint_MR_address_sent;
 		} else {
-			SERIALSTR("t");
 			twint = twint_MT_address_sent;
 		}
-		TWDR = me->request->address; /* Address includes R/W */
+		/* Address includes R/W */
+		TWDR = me->requests[me->requestIndex]->address;
 		TWCR =  (1 << TWINT) |
 			(1 << TWEN ) |
 			(1 << TWIE );
 		break;
 	default:
 		Q_ASSERT(0);
-		twi_error(me, status);
+		twi_int_error(me, status);
 		break;
 	}
-	SERIALSTR("}");
 }
 
 
@@ -301,24 +347,21 @@ static void twint_MT_address_sent(struct TWI *me)
 {
 	uint8_t status;
 
-	SERIALSTR("{B");
 	status = TWSR & 0xf8;
 	switch (status) {
 	case TWI_18_MT_SLA_W_TX_ACK_RX:
-		SERIALSTR("a");
 		/* We've sent an address or previous data, and got an ACK.  If
 		   there is data to send, send the first byte.  If not,
 		   finish. */
-		if (me->request->nbytes) {
-			uint8_t data = me->request->bytes[0];
-			me->request->count ++;
+		if (me->requests[me->requestIndex]->nbytes) {
+			uint8_t data = me->requests[me->requestIndex]->bytes[0];
+			me->requests[me->requestIndex]->count ++;
 			TWDR = data;
 			twint = twint_MT_data_sent;
 			TWCR =  (1 << TWINT) |
 				(1 << TWEN ) |
 				(1 << TWIE );
 		} else {
-			SERIALSTR("n");
 			/* No more data. */
 			twint = twint_null;
 			TWCR =  (1 << TWINT) |
@@ -329,9 +372,8 @@ static void twint_MT_address_sent(struct TWI *me)
 		break;
 
 	case TWI_20_MT_SLA_W_TX_NACK_RX:
-		SERIALSTR("n");
 		/* We've sent an address or previous data, and got a NACK. */
-		me->request->status = status;
+		me->requests[me->requestIndex]->status = status;
 		twint = twint_null;
 		TWCR =  (1 << TWINT) |
 			(1 << TWSTO) |
@@ -340,10 +382,9 @@ static void twint_MT_address_sent(struct TWI *me)
 		break;
 	default:
 		Q_ASSERT(0);
-		twi_error(me, status);
+		twi_int_error(me, status);
 		break;
 	}
-	SERIALSTR("}");
 }
 
 
@@ -351,26 +392,40 @@ static void twint_MT_data_sent(struct TWI *me)
 {
 	uint8_t status;
 	uint8_t data;
-
-	SERIALSTR("{C");
+	volatile struct TWIRequest *request;
 
 	status = TWSR & 0xf8;
 	switch (status) {
 
 	case TWI_28_MT_DATA_TX_ACK_RX:
-		if (me->request->count >= me->request->nbytes) {
+		request = me->requests[me->requestIndex];
+		if (request->count >= request->nbytes) {
 			/* finished */
-			SERIALSTR("l");
-			twint = twint_null;
-			TWCR =  (1 << TWINT) |
-				(1 << TWSTO) |
-				(1 << TWEN ) |
-				(1 << TWIE );
 			fff(me);
-			QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL, 0);
+			QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL,
+					me->requestIndex);
+
+			if ((0 == me->requestIndex) && me->requests[1]) {
+				me->requestIndex ++;
+				Q_ASSERT( me->requestIndex == 1 );
+				twint = twint_start_sent;
+				TWCR =  (1 << TWINT) |
+					(1 << TWEN ) |
+					(1 << TWIE ) |
+					(1 << TWSTA);
+			} else {
+				fff(me);
+				QActive_postISR((QActive*)me, TWI_FINISHED_SIGNAL,
+						0);
+				twint = twint_null;
+				TWCR =  (1 << TWINT) |
+					(1 << TWEN ) |
+					(1 << TWSTO);
+			}
+
 		} else {
-			data = me->request->bytes[me->request->count];
-			me->request->count ++;
+			data = request->bytes[request->count];
+			request->count ++;
 			TWDR = data;
 			/* All good, keep going */
 			TWCR =  (1 << TWINT) |
@@ -385,11 +440,12 @@ static void twint_MT_data_sent(struct TWI *me)
 		break;
 
 	default:
+		serial_send_hex_int(status);
+		_delay_ms(100);
 		Q_ASSERT(0);
 		/* Ah nu */
 		break;
 	}
-	SERIALSTR("}");
 }
 
 
@@ -397,16 +453,13 @@ static void twint_MR_address_sent(struct TWI *me)
 {
 	uint8_t status;
 
-	SERIALSTR("{D");
-
 	status = TWSR & 0xf8;
 	switch (status) {
 
 	case TWI_40_MR_SLA_R_TX_ACK_RX:
-		switch (me->request->nbytes) {
+		switch (me->requests[me->requestIndex]->nbytes) {
 		case 0:
 			/* No data to receive, so stop now. */
-			SERIALSTR("0");
 			twint = twint_null;
 			TWCR =  (1 << TWINT) |
 				(1 << TWEN ) |
@@ -416,17 +469,16 @@ static void twint_MR_address_sent(struct TWI *me)
 		case 1:
 			/* We only want one byte, so make sure we NACK this
 			   first byte. */
-			SERIALSTR("1");
 			twint = twint_MR_data_received;
 			TWCR =  (1 << TWINT) |
 				(1 << TWEN ) |
+				(1 << TWEA ) |
 				(1 << TWIE );
 			break;
 
 		default:
 			/* We want more than one byte, so we have to ACK this
-			   one to convince the slave to continue. */
-			SERIALSTR("+");
+			   first byte to convince the slave to continue. */
 			twint = twint_MR_data_received;
 			TWCR =  (1 << TWINT) |
 				(1 << TWEN ) |
@@ -446,8 +498,6 @@ static void twint_MR_address_sent(struct TWI *me)
 		Q_ASSERT(0);
 		break;
 	}
-
-	SERIALSTR("}");
 }
 
 
@@ -456,20 +506,18 @@ static void twint_MR_data_received(struct TWI *me)
 	/* FIXME */
 	uint8_t status;
 	uint8_t data;
-
-	SERIALSTR("{E");
+	volatile struct TWIRequest *request;
 
 	status = TWSR & 0xf8;
 	switch (status) {
 
 	case TWI_50_MR_DATA_RX_ACK_TX:
-		SERIALSTR("a");
+		request = me->requests[me->requestIndex];
 		data = TWDR;
-		me->request->bytes[me->request->count] = data;
-		me->request->count ++;
-		if (me->request->count == me->request->nbytes - 1) {
+		request->bytes[request->count] = data;
+		request->count ++;
+		if (request->count == request->nbytes - 1) {
 			/* Only one more byte required, so NACK that byte. */
-			SERIALSTR("l");
 			TWCR =  (1 << TWINT) |
 				(1 << TWEN ) |
 				(1 << TWIE );
@@ -482,18 +530,29 @@ static void twint_MR_data_received(struct TWI *me)
 		break;
 
 	case TWI_58_MR_DATA_RX_NACK_TX:
-		SERIALSTR("n");
 		data = TWDR;
-		me->request->bytes[me->request->count] = data;
-		me->request->count ++;
-		twint = twint_null;
-		TWCR =  (1 << TWINT) |
-			(1 << TWEN ) |
-			(1 << TWSTO);
+		request = me->requests[me->requestIndex];
+		request->bytes[request->count] = data;
+		request->count ++;
+		/* Tell the state machine we've finished this (sub-)request. */
 		fff(me);
-		QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL, 0);
+		QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL, me->requestIndex);
+		/* Now check for the next request. */
+		if ((0 == me->requestIndex) && me->requests[1]) {
+			me->requestIndex ++;
+			twint = twint_start_sent;
+			TWCR =  (1 << TWINT) |
+				(1 << TWEN ) |
+				(1 << TWIE ) |
+				(1 << TWSTA);
+		} else {
+			fff(me);
+			QActive_postISR((QActive*)me, TWI_FINISHED_SIGNAL, 0);
+			twint = twint_null;
+			TWCR =  (1 << TWINT) |
+				(1 << TWEN ) |
+				(1 << TWSTO);
+		}
 		break;
 	}
-
-	SERIALSTR("}");
 }

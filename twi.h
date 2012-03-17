@@ -6,7 +6,7 @@
 
 
 /**
- * Request to read from or write to the clock.
+ * Request to read from or write to a TWI device.
  */
 struct TWIRequest {
 	QActive *qactive;	/**< Where to send the result. */
@@ -19,11 +19,17 @@ struct TWIRequest {
 };
 
 
+/**
+ * This represents a state machine implementing TWI, and one or two requests.
+ */
 struct TWI {
 	QActiveNamed super;
-	/** Pointer to the current request.  This must be volatile as it's used
-	    by the TWI interrupt handler. */
-	struct TWIRequest volatile *request;
+	/** Pointers to the current request.  These must be volatile as they're
+	    used by the TWI interrupt handler. */
+	struct TWIRequest volatile *requests[2];
+	/** The request currently being handled by the TWI and associated
+	    interrupt handler. */
+	uint8_t requestIndex;
 };
 
 

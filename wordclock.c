@@ -28,6 +28,8 @@ static QState wordclockSetClockState  (struct Wordclock *me);
 static QState wordclockLEDOnState     (struct Wordclock *me);
 static QState wordclockLEDOffState    (struct Wordclock *me);
 
+static void print_time(uint8_t *bytes);
+
 
 static QEvent wordclockQueue[5];
 static QEvent twiQueue[4];
@@ -53,7 +55,8 @@ int main(int argc, char **argv)
 	MCUCSR = 0;
 
 	serial_init();
-	SERIALSTR_DRAIN("\r\n\r\n\r\n\r\n*** Word Clock ***\r\nStarting\r\n");
+	SERIALSTR_DRAIN("***\r\n");
+	SERIALSTR_DRAIN("\r\n\r\n\r\n*** Word Clock ***\r\nStarting\r\n");
 	SERIALSTR("Reset:");
 	if (mcucsr & 0b1000)
 		SERIALSTR(" watchdog");
@@ -106,11 +109,24 @@ static QState wordclockState(struct Wordclock *me)
 		BSP_watchdog(me);
 		return Q_HANDLED();
 	case TWI_REPLY_SIGNAL:
-		SERIALSTR("WC Got TWI_REPLY_SIGNAL in workclockState: status=");
-		serial_send_int(me->twiRequest.status);
-		SERIALSTR(" (");
-		serial_send_rom(twi_status_string(me->twiRequest.status));
-		SERIALSTR_DRAIN(")\r\n");
+	case TWI_REPLY_1_SIGNAL:
+	case TWI_REPLY_2_SIGNAL:
+		SERIALSTR("WC WTF? I got a ");
+		switch (Q_SIG(me)) {
+		case TWI_REPLY_SIGNAL:
+			SERIALSTR("TWI_REPLY_SIGNAL");
+			break;
+		case TWI_REPLY_1_SIGNAL:
+			SERIALSTR("TWI_REPLY_1_SIGNAL");
+			break;
+		case TWI_REPLY_2_SIGNAL:
+			SERIALSTR("TWI_REPLY_2_SIGNAL");
+			break;
+		default:
+			SERIALSTR("(not a TWI reply signal)");
+			break;
+		}
+		SERIALSTR(" in workclockState\r\n");
 		return Q_HANDLED();
 	}
 	return Q_SUPER(&QHsm_top);
@@ -123,30 +139,33 @@ static QState wordclockSetClockState(struct Wordclock *me)
 
 	case Q_ENTRY_SIG:
 		SERIALSTR_DRAIN("WC setting clock\r\n");
-		me->twiRequest.qactive = (QActive*)me;
-		me->twiRequest.signal = TWI_REPLY_SIGNAL;
-		me->twiRequest.address = DS1307_ADDRMASK | 0b0;
-		me->twiRequest.bytes = me->twiBuffer;
+		me->twiRequest1.qactive = (QActive*)me;
+		me->twiRequest1.signal = TWI_REPLY_1_SIGNAL;
+		me->twiRequest1.address = DS1307_ADDRMASK | 0b0;
+		me->twiRequest1.bytes = me->twiBuffer1;
 
-		me->twiBuffer[0] = 0;	 /* register address */
-		me->twiBuffer[1] = 0x50; /* CH=0, seconds = 50 */
-		me->twiBuffer[2] = 0x59; /* 28 minutes */
-		me->twiBuffer[3] = 0x65; /* 12hr, 5pm */
-		me->twiBuffer[4] = 0x07; /* Sunday */
-		me->twiBuffer[5] = 0x01; /* 1st */
-		me->twiBuffer[6] = 0x01; /* January */
-		me->twiBuffer[7] = 0x01; /* 2001 */
-		me->twiBuffer[8] = 0x00; /* No square wave */
+		me->twiBuffer1[0] = 0;	 /* register address */
+		me->twiBuffer1[1] = 0x50; /* CH=0, seconds = 50 */
+		me->twiBuffer1[2] = 0x59; /* 59 minutes */
+		me->twiBuffer1[3] = 0x65; /* 12hr, 5pm */
+		me->twiBuffer1[4] = 0x07; /* Sunday */
+		me->twiBuffer1[5] = 0x01; /* 1st */
+		me->twiBuffer1[6] = 0x01; /* January */
+		me->twiBuffer1[7] = 0x01; /* 2001 */
+		me->twiBuffer1[8] = 0x00; /* No square wave */
 
-		me->twiRequest.nbytes = 9;
+		me->twiRequest1.nbytes = 9;
+		me->twiRequest1.count = 0;
 		fff(&twi);
+		me->twiRequestAddresses[0] = &(me->twiRequest1);
+		me->twiRequestAddresses[1] = 0;
 		QActive_post((QActive*)(&twi), TWI_REQUEST_SIGNAL,
-			     (QParam)(&me->twiRequest));
+			     (QParam)(me->twiRequestAddresses));
 		return Q_HANDLED();
 
-	case TWI_REPLY_SIGNAL:
-		SERIALSTR("WC Got TWI_REPLY_SIGNAL in set: status=");
-		serial_send_int(me->twiRequest.status);
+	case TWI_REPLY_1_SIGNAL:
+		SERIALSTR("WC Got TWI_REPLY_1_SIGNAL in set: status=");
+		serial_send_int(me->twiRequest1.status);
 		SERIALSTR_DRAIN("\r\n");
 		return Q_TRAN(wordclockLEDOnState);
 
@@ -161,21 +180,57 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 
 	case Q_ENTRY_SIG:
 		BSP_ledOn();
-		me->twiRequest.qactive = (QActive*)me;
-		me->twiRequest.signal = TWI_REPLY_SIGNAL;
-		me->twiRequest.address = DS1307_ADDRMASK | 0b0;
-		me->twiRequest.bytes = me->twiBuffer;
-		me->twiBuffer[0] = 0;
-		me->twiRequest.nbytes = 1;
+
+		me->twiRequest1.qactive = (QActive*)me;
+		me->twiRequest1.signal = TWI_REPLY_1_SIGNAL;
+		me->twiRequest1.address = DS1307_ADDRMASK | 0b0;
+		me->twiRequest1.bytes = me->twiBuffer1;
+		me->twiBuffer1[0] = 0;
+		me->twiRequest1.nbytes = 1;
+		me->twiRequest2.count = 0;
+
+		me->twiRequest2.qactive = (QActive*)me;
+		me->twiRequest2.signal = TWI_REPLY_2_SIGNAL;
+		me->twiRequest2.address = DS1307_ADDRMASK | 0b1;
+		me->twiRequest2.bytes = me->twiBuffer2;
+		me->twiRequest2.nbytes = 3;
+		me->twiRequest2.count = 0;
+
+		me->twiRequestAddresses[0] = &(me->twiRequest1);
+		me->twiRequestAddresses[1] = &(me->twiRequest2);
+
 		fff(&twi);
 		QActive_post((QActive*)(&twi), TWI_REQUEST_SIGNAL,
-			     (QParam)(&me->twiRequest));
+			     (QParam)(&me->twiRequestAddresses));
 		QActive_arm((QActive*)me, 30);
 		return Q_HANDLED();
 
-	case TWI_REPLY_SIGNAL:
-		SERIALSTR("WC Got TWI_REPLY_SIGNAL in on: status=");
-		serial_send_int(me->twiRequest.status);
+	case TWI_REPLY_1_SIGNAL:
+		SERIALSTR("WC Got TWI_REPLY_1_SIGNAL in on: status=");
+		serial_send_int(me->twiRequest1.status);
+		SERIALSTR("\r\n");
+		return Q_HANDLED();
+
+	case TWI_REPLY_2_SIGNAL:
+		SERIALSTR("WC Got TWI_REPLY_2_SIGNAL in on: status=");
+		serial_send_int(me->twiRequest2.status);
+		SERIALSTR(" ");
+		if (! me->twiRequest2.status) {
+			for (uint8_t i=0; i<3; i++) {
+				if (i) {
+					SERIALSTR(",");
+				}
+				serial_send_hex_int(me->twiRequest2.bytes[i]);
+			}
+
+			/* Now convert to a time. */
+			if (me->twiBuffer2[0] & 0x80) {
+				SERIALSTR(" clock disabled");
+			} else {
+				SERIALSTR(" time=");
+				print_time(me->twiBuffer2);
+			}
+		}
 		SERIALSTR("\r\n");
 		return Q_HANDLED();
 
@@ -234,40 +289,19 @@ static QState wordclockLEDOffState(struct Wordclock *me)
 
 	case Q_ENTRY_SIG:
 		BSP_ledOff();
-		me->twiRequest.qactive = (QActive*)me;
-		me->twiRequest.signal = TWI_REPLY_SIGNAL;
-		me->twiRequest.address = DS1307_ADDRMASK | 0b1;
-		me->twiRequest.bytes = me->twiBuffer;
-		me->twiBuffer[0] = me->twiBuffer[1] = me->twiBuffer[2] = 0;
-		me->twiRequest.nbytes = 3;
-		fff(&twi);
-		QActive_post((QActive*)(&twi), TWI_REQUEST_SIGNAL,
-			     (QParam)(&me->twiRequest));
 		QActive_arm((QActive*)me, 30);
 		return Q_HANDLED();
 
-	case TWI_REPLY_SIGNAL:
-		SERIALSTR("WC Got TWI_REPLY_SIGNAL in off: status=");
-		serial_send_int(me->twiRequest.status);
-		SERIALSTR(" ");
-		if (! me->twiRequest.status) {
-			for (uint8_t i=0; i<3; i++) {
-				if (i) {
-					SERIALSTR(",");
-				}
-				serial_send_hex_int(me->twiRequest.bytes[i]);
-			}
-
-			/* Now convert to a time. */
-			if (me->twiBuffer[0] & 0x80) {
-				SERIALSTR(" clock disabled");
-			} else {
-				SERIALSTR(" time=");
-				print_time(me->twiBuffer);
-			}
-		}
+	case TWI_REPLY_1_SIGNAL:
+		SERIALSTR("WC Got TWI_REPLY_1_SIGNAL in off: status=");
+		serial_send_int(me->twiRequest1.status);
 		SERIALSTR("\r\n");
+		return Q_HANDLED();
 
+	case TWI_REPLY_2_SIGNAL:
+		SERIALSTR("WC got TWI_REPLY_2_SIGNAL in off: status=");
+		serial_send_int(me->twiRequest2.status);
+		SERIALSTR("\r\n");
 		return Q_HANDLED();
 
 	case Q_TIMEOUT_SIG:
