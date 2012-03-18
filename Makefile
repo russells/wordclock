@@ -22,6 +22,11 @@ BINPROGRAM = $(APPNAME).bin
 
 AVR_PROGRAMMER ?= stk500v2
 AVR_PROGRAMMER_PORT = /dev/ttyACM0
+ifeq ($(AVRDUDE_NO_VERIFY),)
+AVRDUDE_NO_VERIFY_FLAG =
+else
+AVRDUDE_NO_VERIFY_FLAG = -V
+endif
 
 QPN_INCDIR = qp-nano/include
 QP_LIBDIR = $(QP_PRTDIR)/$(BINDIR)
@@ -79,7 +84,7 @@ realclean: clean
 
 .PHONY: flash
 flash: $(HEXPROGRAM)
-	avrdude -P $(AVR_PROGRAMMER_PORT) -p m32 -c $(AVR_PROGRAMMER) -U flash:w:$(HEXPROGRAM)
+	avrdude $(AVRDUDE_NO_VERIFY_FLAG) -P $(AVR_PROGRAMMER_PORT) -p m32 -c $(AVR_PROGRAMMER) -U flash:w:$(HEXPROGRAM)
 
 .PHONY: doc
 doc:
