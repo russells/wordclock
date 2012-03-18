@@ -176,6 +176,8 @@ static QState wordclockSetClockState(struct Wordclock *me)
 
 static QState wordclockLEDOnState(struct Wordclock *me)
 {
+	uint8_t status;
+
 	switch (Q_SIG(me)) {
 
 	case Q_ENTRY_SIG:
@@ -206,16 +208,22 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 		return Q_HANDLED();
 
 	case TWI_REPLY_1_SIGNAL:
+		status = me->twiRequest1.status;
 		SERIALSTR("WC Got TWI_REPLY_1_SIGNAL in on: status=");
-		serial_send_int(me->twiRequest1.status);
+		serial_send_int(status);
+		if (status) {
+			SERIALSTR(": ");
+			serial_send_rom(twi_status_string(status));
+		}
 		SERIALSTR("\r\n");
 		return Q_HANDLED();
 
 	case TWI_REPLY_2_SIGNAL:
+		status = me->twiRequest2.status;
 		SERIALSTR("WC Got TWI_REPLY_2_SIGNAL in on: status=");
-		serial_send_int(me->twiRequest2.status);
+		serial_send_int(status);
 		SERIALSTR(" ");
-		if (! me->twiRequest2.status) {
+		if (! status) {
 			for (uint8_t i=0; i<3; i++) {
 				if (i) {
 					SERIALSTR(",");
@@ -230,6 +238,9 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 				SERIALSTR(" time=");
 				print_time(me->twiBuffer2);
 			}
+		} else {
+			SERIALSTR(": ");
+			serial_send_rom(twi_status_string(status));
 		}
 		SERIALSTR("\r\n");
 		return Q_HANDLED();
