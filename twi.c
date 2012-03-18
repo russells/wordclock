@@ -144,12 +144,16 @@ static QState twiState(struct TWI *me)
 		request = *requestp;
 		SERIALSTR("TWI Got TWI_REQUEST_SIGNAL\r\n");
 		Q_ASSERT( request );
+		Q_ASSERT( 0 == request->count );
 		Q_ASSERT( ! me->requests[0] );
 		me->requests[0] = request;
 		requestp++;
 		request = *requestp;
 		Q_ASSERT( ! me->requests[1] );
-		me->requests[1] = request;
+		if (request) {
+			Q_ASSERT( 0 == request->count );
+			me->requests[1] = request;
+		}
 		me->requestIndex = 0;
 		return Q_TRAN(twiBusyState);
 
@@ -223,7 +227,7 @@ static QState twiBusyState(struct TWI *me)
  *
  * The request can be either a single request, or a chain of two.  The chaining
  * of requests (with a REPEATED START) is handled later in the interrupt
- * handler.
+ * handler (in maybe_start_next_request()).
  */
 static void start_request(struct TWI *me)
 {
@@ -302,14 +306,10 @@ static void twint_null(struct TWI *me)
 static void twi_int_error(struct TWI *me, uint8_t status)
 {
 	SERIALSTR("<E>");
-	twint = twint_null;
-	/* Transmit a STOP. */
-	TWCR =  (1 << TWINT) |
-		(1 << TWSTO) |
-		(1 << TWEN );
 	me->requests[me->requestIndex]->status = status;
 	fff(me);
 	QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL, me->requestIndex);
+	maybe_start_next_request(me);
 }
 
 
@@ -472,19 +472,15 @@ static void twint_MR_address_sent(struct TWI *me)
 		switch (me->requests[me->requestIndex]->nbytes) {
 		case 0:
 			/* No data to receive, so stop now. */
-			twint = twint_null;
-			TWCR =  (1 << TWINT) |
-				(1 << TWEN ) |
-				(1 << TWSTO);
+			maybe_start_next_request(me);
 			break;
 
 		case 1:
 			/* We only want one byte, so make sure we NACK this
-			   first byte. */
+			   first byte.  ie don't set TWEA. */
 			twint = twint_MR_data_received;
 			TWCR =  (1 << TWINT) |
 				(1 << TWEN ) |
-				(1 << TWEA ) |
 				(1 << TWIE );
 			break;
 
@@ -501,13 +497,11 @@ static void twint_MR_address_sent(struct TWI *me)
 		break;
 
 	case TWI_48_MR_SLA_R_TX_NACK_RX:
-		_delay_ms(500);
-		Q_ASSERT(0);
+		twi_int_error(me, status);
 		break;
 
 	default:
-		_delay_ms(500);
-		Q_ASSERT(0);
+		twi_int_error(me, status);
 		break;
 	}
 }
