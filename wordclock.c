@@ -189,7 +189,7 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 		me->twiRequest1.bytes = me->twiBuffer1;
 		me->twiBuffer1[0] = 0;
 		me->twiRequest1.nbytes = 1;
-		me->twiRequest2.count = 0;
+		me->twiRequest1.count = 0;
 
 		me->twiRequest2.qactive = (QActive*)me;
 		me->twiRequest2.signal = TWI_REPLY_2_SIGNAL;
