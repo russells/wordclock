@@ -41,6 +41,12 @@ typedef void (*TWIInterruptHandler)(struct TWI *me);
 
 static void twi_init(void);
 
+/**
+ * Called when the interrupt state machine has finished with a request and can
+ * move to the next request, if there is one.
+ */
+static void maybe_start_next_request(struct TWI *me);
+
 
 /**
  * This function gets called from the TWI interrupt handler.
@@ -331,7 +337,7 @@ static void twint_start_sent(struct TWI *me)
 			(1 << TWIE );
 		break;
 	default:
-		Q_ASSERT(0);
+		//Q_ASSERT(0);
 		twi_int_error(me, status);
 		break;
 	}
@@ -381,9 +387,32 @@ static void twint_MT_address_sent(struct TWI *me)
 			(1 << TWIE );
 		break;
 	default:
-		Q_ASSERT(0);
+		//Q_ASSERT(0);
 		twi_int_error(me, status);
 		break;
+	}
+}
+
+
+static void maybe_start_next_request(struct TWI *me)
+{
+	// This test limits the number of requests to 2.
+	if ((0 == me->requestIndex) && me->requests[1]) {
+		me->requestIndex ++;
+		Q_ASSERT( me->requestIndex == 1 );
+		twint = twint_start_sent;
+		TWCR =  (1 << TWINT) |
+			(1 << TWEN ) |
+			(1 << TWIE ) |
+			(1 << TWSTA);
+	} else {
+		fff(me);
+		QActive_postISR((QActive*)me,
+				TWI_FINISHED_SIGNAL, 0);
+		twint = twint_null;
+		TWCR =  (1 << TWINT) |
+			(1 << TWEN ) |
+			(1 << TWSTO);
 	}
 }
 
@@ -395,34 +424,17 @@ static void twint_MT_data_sent(struct TWI *me)
 	volatile struct TWIRequest *request;
 
 	status = TWSR & 0xf8;
+	request = me->requests[me->requestIndex];
+
 	switch (status) {
 
 	case TWI_28_MT_DATA_TX_ACK_RX:
-		request = me->requests[me->requestIndex];
 		if (request->count >= request->nbytes) {
 			/* finished */
 			fff(me);
 			QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL,
 					me->requestIndex);
-
-			if ((0 == me->requestIndex) && me->requests[1]) {
-				me->requestIndex ++;
-				Q_ASSERT( me->requestIndex == 1 );
-				twint = twint_start_sent;
-				TWCR =  (1 << TWINT) |
-					(1 << TWEN ) |
-					(1 << TWIE ) |
-					(1 << TWSTA);
-			} else {
-				fff(me);
-				QActive_postISR((QActive*)me, TWI_FINISHED_SIGNAL,
-						0);
-				twint = twint_null;
-				TWCR =  (1 << TWINT) |
-					(1 << TWEN ) |
-					(1 << TWSTO);
-			}
-
+			maybe_start_next_request(me);
 		} else {
 			data = request->bytes[request->count];
 			request->count ++;
@@ -435,15 +447,15 @@ static void twint_MT_data_sent(struct TWI *me)
 		break;
 
 	case TWI_30_MT_DATA_TX_NACK_RX:
-		Q_ASSERT(0);
+		//Q_ASSERT(0);
 		/* Ah nu */
+		twi_int_error(me, status);
 		break;
 
 	default:
-		serial_send_hex_int(status);
-		_delay_ms(100);
-		Q_ASSERT(0);
+		//Q_ASSERT(0);
 		/* Ah nu */
+		twi_int_error(me, status);
 		break;
 	}
 }
@@ -538,21 +550,7 @@ static void twint_MR_data_received(struct TWI *me)
 		fff(me);
 		QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL, me->requestIndex);
 		/* Now check for the next request. */
-		if ((0 == me->requestIndex) && me->requests[1]) {
-			me->requestIndex ++;
-			twint = twint_start_sent;
-			TWCR =  (1 << TWINT) |
-				(1 << TWEN ) |
-				(1 << TWIE ) |
-				(1 << TWSTA);
-		} else {
-			fff(me);
-			QActive_postISR((QActive*)me, TWI_FINISHED_SIGNAL, 0);
-			twint = twint_null;
-			TWCR =  (1 << TWINT) |
-				(1 << TWEN ) |
-				(1 << TWSTO);
-		}
+		maybe_start_next_request(me);
 		break;
 	}
 }
