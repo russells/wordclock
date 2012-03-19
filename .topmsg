@@ -1,0 +1,9 @@
+From: Russell Steicke <russells@adelie.cx>
+Subject: Combine some strings to save memory.
+
+There have been multiple copies of some strings, using up program
+memory unnecessarily.  Macros are the cause of most of this.  So
+change the macros to reference single copies of those strings.  Also
+make single copies of other common strings, such as "\r\n";
+
+Signed-off-by: Russell Steicke <russells@adelie.cx>
