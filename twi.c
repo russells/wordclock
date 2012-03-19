@@ -337,7 +337,6 @@ static void twint_start_sent(struct TWI *me)
 			(1 << TWIE );
 		break;
 	default:
-		//Q_ASSERT(0);
 		twi_int_error(me, status);
 		break;
 	}
@@ -387,29 +386,33 @@ static void twint_MT_address_sent(struct TWI *me)
 			(1 << TWIE );
 		break;
 	default:
-		//Q_ASSERT(0);
 		twi_int_error(me, status);
 		break;
 	}
 }
 
 
+/**
+ * Check to see if we have finished one request and need to move to the next.
+ *
+ * Any TWI interrupt state that finishes a request (either normally or with an
+ * error) must call this function.  Here we check for the next request and
+ * arrange for a TWI REPEATED START if we are moving on to the next request.
+ */
 static void maybe_start_next_request(struct TWI *me)
 {
 	// This test limits the number of requests to 2.
 	if ((0 == me->requestIndex) && me->requests[1]) {
 		me->requestIndex ++;
 		Q_ASSERT( me->requestIndex == 1 );
-		twint = twint_start_sent;
-		TWCR =  (1 << TWINT) |
-			(1 << TWEN ) |
-			(1 << TWIE ) |
-			(1 << TWSTA);
+		send_start(me);
 	} else {
 		fff(me);
 		QActive_postISR((QActive*)me,
 				TWI_FINISHED_SIGNAL, 0);
 		twint = twint_null;
+		/* Don't set TWIE, as we're not really interested in when the
+		   STOP has been sent. */
 		TWCR =  (1 << TWINT) |
 			(1 << TWEN ) |
 			(1 << TWSTO);
@@ -447,13 +450,11 @@ static void twint_MT_data_sent(struct TWI *me)
 		break;
 
 	case TWI_30_MT_DATA_TX_NACK_RX:
-		//Q_ASSERT(0);
 		/* Ah nu */
 		twi_int_error(me, status);
 		break;
 
 	default:
-		//Q_ASSERT(0);
 		/* Ah nu */
 		twi_int_error(me, status);
 		break;
