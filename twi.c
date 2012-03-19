@@ -45,7 +45,7 @@ static void twi_init(void);
  * Called when the interrupt state machine has finished with a request and can
  * move to the next request, if there is one.
  */
-static void maybe_start_next_request(struct TWI *me);
+static void next_request(struct TWI *me);
 
 
 /**
@@ -227,7 +227,7 @@ static QState twiBusyState(struct TWI *me)
  *
  * The request can be either a single request, or a chain of two.  The chaining
  * of requests (with a REPEATED START) is handled later in the interrupt
- * handler (in maybe_start_next_request()).
+ * handler (in next_request()).
  */
 static void start_request(struct TWI *me)
 {
@@ -309,7 +309,7 @@ static void twi_int_error(struct TWI *me, uint8_t status)
 	me->requests[me->requestIndex]->status = status;
 	fff(me);
 	QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL, me->requestIndex);
-	maybe_start_next_request(me);
+	next_request(me);
 }
 
 
@@ -399,7 +399,7 @@ static void twint_MT_address_sent(struct TWI *me)
  * error) must call this function.  Here we check for the next request and
  * arrange for a TWI REPEATED START if we are moving on to the next request.
  */
-static void maybe_start_next_request(struct TWI *me)
+static void next_request(struct TWI *me)
 {
 	// This test limits the number of requests to 2.
 	if ((0 == me->requestIndex) && me->requests[1]) {
@@ -437,7 +437,7 @@ static void twint_MT_data_sent(struct TWI *me)
 			fff(me);
 			QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL,
 					me->requestIndex);
-			maybe_start_next_request(me);
+			next_request(me);
 		} else {
 			data = request->bytes[request->count];
 			request->count ++;
@@ -473,7 +473,7 @@ static void twint_MR_address_sent(struct TWI *me)
 		switch (me->requests[me->requestIndex]->nbytes) {
 		case 0:
 			/* No data to receive, so stop now. */
-			maybe_start_next_request(me);
+			next_request(me);
 			break;
 
 		case 1:
@@ -545,7 +545,7 @@ static void twint_MR_data_received(struct TWI *me)
 		fff(me);
 		QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL, me->requestIndex);
 		/* Now check for the next request. */
-		maybe_start_next_request(me);
+		next_request(me);
 		break;
 	}
 }
