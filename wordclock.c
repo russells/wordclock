@@ -5,6 +5,7 @@
 
 #include "wordclock.h"
 #include "wordclock-signals.h"
+#include "wordclock-strings.h"
 #include "bsp.h"
 #include "qpn_port.h"
 #include "qactive-named.h"
@@ -91,7 +92,7 @@ void wordclock_ctor(void)
 	serial_send_hex_int((unsigned int)(&wordclock));
 	SERIALSTR(" &name==");
 	serial_send_hex_int((unsigned int)(wordclockName));
-	SERIALSTR_DRAIN("\r\n");
+	SERIALSTR_DRAIN(S_RN);
 	wordclock.super.name = wordclockName;
 }
 
