@@ -92,7 +92,7 @@ void wordclock_ctor(void)
 	serial_send_hex_int((unsigned int)(&wordclock));
 	SERIALSTR(" &name==");
 	serial_send_hex_int((unsigned int)(wordclockName));
-	SERIALSTR_DRAIN(S_RN);
+	SERIALSTR_STATIC(S_RN);
 	wordclock.super.name = wordclockName;
 }
 
