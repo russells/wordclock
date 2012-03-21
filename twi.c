@@ -2,6 +2,7 @@
 #include "twi-status.h"
 #include "wordclock-signals.h"
 #include "serial.h"
+#include "wordclock-strings.h"
 
 #include "wordclock.h"
 
@@ -99,7 +100,7 @@ void twi_ctor(void)
 	serial_send_hex_int((unsigned int)(&twi));
 	SERIALSTR(" &name==");
 	serial_send_hex_int((unsigned int)(twiName));
-	SERIALSTR_DRAIN("\r\n");
+	SERIALSTR_STATIC_DRAIN(S_RN);
 	twi.super.name = twiName;
 }
 
@@ -231,7 +232,7 @@ static void start_request(struct TWI *me)
 	}
 	SERIALSTR(" nbytes=");
 	serial_send_int(me->requests[0]->nbytes);
-	SERIALSTR_DRAIN("\r\n");
+	SERIALSTR_STATIC_DRAIN(S_RN);
 	me->requests[0]->count = 0;
 	send_start(me);
 }
