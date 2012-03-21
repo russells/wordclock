@@ -209,7 +209,7 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 	case TWI_REPLY_1_SIGNAL:
 		SERIALSTR("WC Got TWI_REPLY_1_SIGNAL in on: status=");
 		serial_send_int(me->twiRequest1.status);
-		SERIALSTR_STATIC("\r\n");
+		SERIALSTR_STATIC(S_RN);
 		return Q_HANDLED();
 
 	case TWI_REPLY_2_SIGNAL:
