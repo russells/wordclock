@@ -58,4 +58,10 @@ void serial_assert(char const Q_ROM * const Q_ROM_VAR file, int line);
 		serial_send_rom(sname);		\
 	} while (0)
 
+#define SERIALSTR_STATIC_DRAIN(sname)		\
+	do {					\
+		serial_send_rom(sname);		\
+		serial_drain();			\
+	} while (0)
+
 #endif

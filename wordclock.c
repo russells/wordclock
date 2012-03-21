@@ -92,7 +92,7 @@ void wordclock_ctor(void)
 	serial_send_hex_int((unsigned int)(&wordclock));
 	SERIALSTR(" &name==");
 	serial_send_hex_int((unsigned int)(wordclockName));
-	SERIALSTR_STATIC(S_RN);
+	SERIALSTR_STATIC_DRAIN(S_RN);
 	wordclock.super.name = wordclockName;
 }
 
@@ -167,7 +167,7 @@ static QState wordclockSetClockState(struct Wordclock *me)
 	case TWI_REPLY_1_SIGNAL:
 		SERIALSTR("WC Got TWI_REPLY_1_SIGNAL in set: status=");
 		serial_send_int(me->twiRequest1.status);
-		SERIALSTR_DRAIN("\r\n");
+		SERIALSTR_STATIC_DRAIN(S_RN);
 		return Q_TRAN(wordclockLEDOnState);
 
 	}
@@ -209,7 +209,7 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 	case TWI_REPLY_1_SIGNAL:
 		SERIALSTR("WC Got TWI_REPLY_1_SIGNAL in on: status=");
 		serial_send_int(me->twiRequest1.status);
-		SERIALSTR("\r\n");
+		SERIALSTR_STATIC("\r\n");
 		return Q_HANDLED();
 
 	case TWI_REPLY_2_SIGNAL:
@@ -232,7 +232,7 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 				print_time(me->twiBuffer2);
 			}
 		}
-		SERIALSTR("\r\n");
+		SERIALSTR_STATIC(S_RN);
 		return Q_HANDLED();
 
 	case Q_TIMEOUT_SIG:
@@ -296,13 +296,13 @@ static QState wordclockLEDOffState(struct Wordclock *me)
 	case TWI_REPLY_1_SIGNAL:
 		SERIALSTR("WC Got TWI_REPLY_1_SIGNAL in off: status=");
 		serial_send_int(me->twiRequest1.status);
-		SERIALSTR("\r\n");
+		SERIALSTR_STATIC(S_RN);
 		return Q_HANDLED();
 
 	case TWI_REPLY_2_SIGNAL:
 		SERIALSTR("WC got TWI_REPLY_2_SIGNAL in off: status=");
 		serial_send_int(me->twiRequest2.status);
-		SERIALSTR("\r\n");
+		SERIALSTR_STATIC(S_RN);
 		return Q_HANDLED();
 
 	case Q_TIMEOUT_SIG:
