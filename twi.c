@@ -101,11 +101,11 @@ void twi_ctor(void)
 	twi.requests[0] = 0;
 	twi.requests[1] = 0;
 	twi.requestIndex = 0;
-	SERIALSTR("TWI address==");
-	serial_send_hex_int((unsigned int)(&twi));
-	SERIALSTR(" &name==");
-	serial_send_hex_int((unsigned int)(twiName));
-	SERIALSTR_DRAIN("\r\n");
+	ST("TWI address==");
+	serial_trace_hex_int((unsigned int)(&twi));
+	ST(" &name==");
+	serial_trace_hex_int((unsigned int)(twiName));
+	STD("\r\n");
 	twi.super.name = twiName;
 }
 
@@ -142,7 +142,7 @@ static QState twiState(struct TWI *me)
 		requestp = (struct TWIRequest **)Q_PAR(me);
 		Q_ASSERT( requestp );
 		request = *requestp;
-		SERIALSTR("TWI Got TWI_REQUEST_SIGNAL\r\n");
+		ST("TWI Got TWI_REQUEST_SIGNAL\r\n");
 		Q_ASSERT( request );
 		Q_ASSERT( 0 == request->count );
 		Q_ASSERT( ! me->requests[0] );
@@ -158,7 +158,7 @@ static QState twiState(struct TWI *me)
 		return Q_TRAN(twiBusyState);
 
 	case Q_TIMEOUT_SIG:
-		SERIALSTR("TWI timeout without outstanding request\r\n");
+		ST("TWI timeout without outstanding request\r\n");
 		return Q_HANDLED();
 
 	}
@@ -175,12 +175,12 @@ static QState twiBusyState(struct TWI *me)
 	switch (Q_SIG(me)) {
 
 	case Q_ENTRY_SIG:
-		SERIALSTR_DRAIN("TWI > twiBusyState\r\n");
+		STD("TWI > twiBusyState\r\n");
 		start_request(me);
 		return Q_HANDLED();
 
 	case Q_EXIT_SIG:
-		SERIALSTR_DRAIN("TWI < twiBusyState\r\n");
+		STD("TWI < twiBusyState\r\n");
 		sreg = SREG;
 		cli();
 		me->requests[0] = 0;
@@ -190,7 +190,7 @@ static QState twiBusyState(struct TWI *me)
 		return Q_HANDLED();
 
 	case TWI_REQUEST_SIGNAL:
-		SERIALSTR_DRAIN("TWI got excess TWI_REQUEST_SIGNAL\r\n");
+		STD("TWI got excess TWI_REQUEST_SIGNAL\r\n");
 		requestp = (struct TWIRequest **)Q_PAR(me);
 		if (requestp[0]) {
 			requestp[0]->status = TWI_QUEUE_FULL;
@@ -207,7 +207,7 @@ static QState twiBusyState(struct TWI *me)
 		return Q_HANDLED();
 
 	case TWI_REPLY_SIGNAL:
-		SERIALSTR_DRAIN("TWI got TWI_REPLY_SIGNAL\r\n");
+		STD("TWI got TWI_REPLY_SIGNAL\r\n");
 		r = (uint8_t) Q_PAR(me);
 		fff(me->requests[r]->qactive);
 		QActive_post(me->requests[r]->qactive, me->requests[r]->signal,
@@ -232,16 +232,16 @@ static QState twiBusyState(struct TWI *me)
 static void start_request(struct TWI *me)
 {
 	Q_ASSERT( ! me->requestIndex );
-	SERIALSTR("TWI addr=");
-	serial_send_hex_int(me->requests[0]->address & 0xfe);
+	ST("TWI addr=");
+	serial_trace_hex_int(me->requests[0]->address & 0xfe);
 	if (me->requests[0]->address & 0b1) {
-		SERIALSTR("(r)");
+		ST("(r)");
 	} else {
-		SERIALSTR("(w)");
+		ST("(w)");
 	}
-	SERIALSTR(" nbytes=");
-	serial_send_int(me->requests[0]->nbytes);
-	SERIALSTR_DRAIN("\r\n");
+	ST(" nbytes=");
+	serial_trace_int(me->requests[0]->nbytes);
+	STD("\r\n");
 	me->requests[0]->count = 0;
 	send_start(me);
 }
@@ -253,7 +253,7 @@ SIGNAL(TWI_vect)
 
 	counter ++;
 	if (0 == counter)
-		SERIALSTR(",");
+		ST(",");
 	if (! twi.requests[twi.requestIndex]) {
 		twint = twint_null;
 	}
@@ -293,7 +293,7 @@ static void send_start(struct TWI *me)
 static void twint_null(struct TWI *me)
 {
 	/* Notify that we have been called.  This should never happen. */
-	SERIALSTR("<TWI>");
+	ST("<TWI>");
 	/* Disable the TWI.  We need to set TWINT in order to reset the
 	   internal value of TWINT. */
 	TWCR = (1 << TWINT);
@@ -305,7 +305,7 @@ static void twint_null(struct TWI *me)
  */
 static void twi_int_error(struct TWI *me, uint8_t status)
 {
-	SERIALSTR("<E>");
+	ST("<E>");
 	me->requests[me->requestIndex]->status = status;
 	fff(me);
 	QActive_postISR((QActive*)me, TWI_REPLY_SIGNAL, me->requestIndex);
