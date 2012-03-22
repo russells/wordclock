@@ -82,14 +82,14 @@ start_tick_timer(void)
 
 void BSP_ledOn(void)
 {
-	SERIALSTR("LED on\r\n");
+	ST("LED on\r\n");
 	PORTA |= (1 << 1);
 }
 
 
 void BSP_ledOff(void)
 {
-	SERIALSTR("LED off\r\n");
+	ST("LED off\r\n");
 	PORTA &= ~ (1 << 1);
 }
 

@@ -38,8 +38,8 @@
 #define QF_TIMEEVT_CTR_SIZE     2 /* 16 bit time counter for wordclock. */
 
 /* maximum # active objects--must match EXACTLY the QF_active[] definition  */
-#define QF_MAX_ACTIVE           2 /* The wordclock has these active objects:
-				     wordclock, timechip. */
+#define QF_MAX_ACTIVE           3 /* The wordclock has these active objects:
+				     wordclock, twi, commander. */
 
                                /* interrupt locking policy for IAR compiler */
 #define QF_INT_LOCK()           cli()

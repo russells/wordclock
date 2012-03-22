@@ -55,13 +55,13 @@ extern struct Wordclock wordclock;
 		QActiveNamed *_men = (QActiveNamed *)(o);		\
 		QActiveCB const Q_ROM *_ao = &QF_active[_me->prio];	\
 		if(_me->nUsed >= Q_ROM_BYTE(_ao->end)) {		\
-			SERIALSTR("\r\nfff( _me=");			\
+			S("\r\nfff( _me=");				\
 			serial_send_hex_int((unsigned int)_me);		\
-			SERIALSTR(",  name=");				\
+			S(",  name=");					\
 			serial_send_hex_int((unsigned int)(_men->name)); \
-			SERIALSTR(", ");				\
+			S(", ");					\
 			serial_send_rom(_men->name);			\
-			SERIALSTR_DRAIN(")\r\n");			\
+			SD(")\r\n");					\
 		}							\
 		Q_ASSERT(_me->nUsed < Q_ROM_BYTE(_ao->end));		\
 	} while (0)

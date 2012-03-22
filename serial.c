@@ -1,5 +1,7 @@
 #include "wordclock.h"
 #include "serial.h"
+#include "commander.h"
+#include "wordclock-signals.h"
 #include <avr/wdt.h>
 #include "cpu-speed.h"
 #include <util/delay.h>
@@ -7,6 +9,13 @@
 
 Q_DEFINE_THIS_FILE;
 
+
+uint8_t trace = 1;
+
+
+void traceon(void) { trace = 1; }
+void traceoff(void) { trace = 0; }
+uint8_t tracing(void) { return trace; }
 
 void
 serial_init(void)
@@ -21,10 +30,10 @@ serial_init(void)
 	/* Ensure that U2X=0. */
 	UCSRA = 0;
 
-	UCSRB = (0<<RXCIE) |	/* No rx interrupts (yet) */
+	UCSRB = (1<<RXCIE) |	/* No rx interrupts (yet) */
 		(0<<TXCIE) |
 		(0<<UDRIE) |	/* Enable tx interrupts when we have data */
-		(0<<RXEN ) |	/* No rx (yet) */
+		(1<<RXEN ) |	/* No rx (yet) */
 		(1<<TXEN ) |	/* Tx on */
 		(0<<UCSZ2) |	/* 8 bits */
 		(0<<RXB8 ) |
@@ -71,6 +80,12 @@ int serial_send(const char *s)
 }
 
 
+int serial_trace(const char *s) {
+	if (trace) return serial_send(s);
+	else return 0;
+}
+
+
 /**
  * @brief Send a string from program memory out the serial port.
  *
@@ -96,6 +111,12 @@ int serial_send_rom(char const Q_ROM * const Q_ROM_VAR s)
 		}
 	}
 	return sent;
+}
+
+
+int serial_trace_rom(char const Q_ROM * const Q_ROM_VAR s) {
+	if (trace) return serial_send_rom(s);
+	else return 0;
 }
 
 
@@ -295,6 +316,12 @@ int serial_send_int(unsigned int n)
 }
 
 
+int serial_trace_int(unsigned int n) {
+	if (trace) return serial_send_int(n);
+	else return 0;
+}
+
+
 int serial_send_hex_int(unsigned int x)
 {
 	char buf[10];
@@ -320,8 +347,24 @@ int serial_send_hex_int(unsigned int x)
 }
 
 
+int serial_trace_hex_int(unsigned int x) {
+	if (trace) return serial_send_hex_int(x);
+	else return 0;
+}
+
+
 void serial_drain(void)
 {
 	while (sendhead != sendtail)
 		;
+}
+
+
+SIGNAL(USART_RXC_vect)
+{
+	uint8_t data;
+
+	data = UDR;
+	fff(&commander);
+	QActive_postISR((QActive*)(&commander), CHAR_SIGNAL, data);
 }
