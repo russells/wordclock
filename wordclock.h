@@ -19,6 +19,7 @@ void wordclock_ctor(void);
  */
 struct Wordclock {
 	QActiveNamed super;
+	uint8_t tick20counter;
 	struct TWIRequest twiRequest1;
 	struct TWIRequest twiRequest2;
 	/** This contains the addresses of one or both of the TWIRequests

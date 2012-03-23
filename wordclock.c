@@ -103,6 +103,7 @@ void wordclock_ctor(void)
 	serial_trace_hex_int((unsigned int)(wordclockName));
 	STD("\r\n");
 	wordclock.super.name = wordclockName;
+	wordclock.tick20counter = 0;
 }
 
 
@@ -138,6 +139,13 @@ static QState wordclockState(struct Wordclock *me)
 		}
 		S(" in workclockState\r\n");
 		return Q_HANDLED();
+
+	case TICK_20TH_SIGNAL:
+		me->tick20counter ++;
+		if (20 == me->tick20counter) {
+			fff(me);
+			QActive_post((QActive*)me, TICK_1S_SIGNAL, 0);
+		}
 	}
 	return Q_SUPER(&QHsm_top);
 }

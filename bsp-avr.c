@@ -106,5 +106,5 @@ SIGNAL(TIMER0_COMP_vect)
 		counter = 0;
 	}
 	fff(&wordclock);
-	QActive_postISR((QActive*)(&wordclock), TICK20_SIGNAL, 0);
+	QActive_postISR((QActive*)(&wordclock), TICK_20TH_SIGNAL, 0);
 }
