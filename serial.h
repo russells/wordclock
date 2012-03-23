@@ -8,8 +8,6 @@
 
 /**
  * Data structure used for serial reception.
- *
- * @todo Enable reception, if required.
  */
 struct SerialLine {
 	volatile uint8_t locked;
@@ -78,9 +76,3 @@ void traceoff(void);
 	} while (0)
 
 #endif
-
-/**
- * @todo add ST() and STD() macros that check for the trace variable.  They are
- * intended for debugging output.  Normal output can go via S() and SD().  Then
- * change most callers of S() and SD() to use ST() and STD().
- */

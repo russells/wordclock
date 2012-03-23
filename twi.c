@@ -1,14 +1,3 @@
-#include "twi.h"
-#include "twi-status.h"
-#include "wordclock-signals.h"
-#include "serial.h"
-
-#include "wordclock.h"
-
-#include "cpu-speed.h"
-#include <util/delay.h>
-
-
 /**
  * @file
  *
@@ -20,16 +9,29 @@
  * function pointer to the handler, and the handler sets the next state by
  * changing the function pointer.
  *
- * @todo Allow a connection to do a write followed by a read, without releasing
- * the TWI bus.  The typical sequence would be START -> SLA+W -> write internal
- * slave address -> REPEATED START -> SLA+R -> read data from slave -> STOP.
+ * @todo Handle the errors that can be produced by the TWI at each stage of a
+ * transaction.  Ensure we handle all the cases mentioned in the ATmega32
+ * documentation.
  */
+
+
+#include "twi.h"
+#include "twi-status.h"
+#include "wordclock-signals.h"
+#include "serial.h"
+
+#include "wordclock.h"
+
+#include "cpu-speed.h"
+#include <util/delay.h>
 
 
 Q_DEFINE_THIS_FILE;
 
 
-/** The DS1307 is represented by this. */
+/**
+ * Interface to a TWI slave.
+ */
 struct TWI twi;
 
 
@@ -111,7 +113,7 @@ void twi_ctor(void)
 
 
 /**
- * Set up the TWI bit rate.
+ * Set up the TWI bit rate and default interrupt function.
  */
 static void twi_init(void)
 {
@@ -166,12 +168,16 @@ static QState twiState(struct TWI *me)
 }
 
 
+/**
+ * Wait here until the interrupt state machine tells us it's finished the
+ * TWI requests.  Reject any further TWI requests.
+ */
 static QState twiBusyState(struct TWI *me)
 {
 	uint8_t r;
 	uint8_t sreg;
-
 	struct TWIRequest **requestp;
+
 	switch (Q_SIG(me)) {
 
 	case Q_ENTRY_SIG:
@@ -247,6 +253,10 @@ static void start_request(struct TWI *me)
 }
 
 
+/**
+ * Interrupt handler for the TWI.  Not much work is done by this function -
+ * it's all done by calling the interrupt state function.
+ */
 SIGNAL(TWI_vect)
 {
 	static uint8_t counter = 0;
@@ -315,7 +325,7 @@ static void twi_int_error(struct TWI *me, uint8_t status)
 
 /**
  * Called when we expect to have sent a start condition and need to next send
- * the TWI bus address (SLA+W).
+ * the TWI bus address (SLA+R/W).
  */
 static void twint_start_sent(struct TWI *me)
 {
@@ -345,8 +355,6 @@ static void twint_start_sent(struct TWI *me)
 
 /**
  * Called in MT mode, when we are sending data.
- *
- * @todo separate this into two functions, one for MR mode and one for MT mode.
  */
 static void twint_MT_address_sent(struct TWI *me)
 {
@@ -420,6 +428,9 @@ static void next_request(struct TWI *me)
 }
 
 
+/**
+ * Called in master transmitter mode, after data has been sent.
+ */
 static void twint_MT_data_sent(struct TWI *me)
 {
 	uint8_t status;
@@ -462,6 +473,9 @@ static void twint_MT_data_sent(struct TWI *me)
 }
 
 
+/**
+ * Called in master receiver mode, after the address has been sent.
+ */
 static void twint_MR_address_sent(struct TWI *me)
 {
 	uint8_t status;
@@ -508,6 +522,9 @@ static void twint_MR_address_sent(struct TWI *me)
 }
 
 
+/**
+ * Called in master receiver mode, after data has been received.
+ */
 static void twint_MR_data_received(struct TWI *me)
 {
 	/* FIXME */
