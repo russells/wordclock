@@ -144,6 +144,7 @@ static QState wordclockState(struct Wordclock *me)
 		me->tick20counter ++;
 		if (20 == me->tick20counter) {
 			fff(me);
+			me->tick20counter = 0;
 			QActive_post((QActive*)me, TICK_1S_SIGNAL, 0);
 		}
 	}
