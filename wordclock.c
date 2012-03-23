@@ -1,6 +1,12 @@
 /**
  * @file
  *
+ * Word clock main.
+ *
+ * @todo Remove the LED on/LED off stuff, and make this read and print the time
+ * occasionally, perhaps every five seconds.  Also, put in a timer counter that
+ * sends a signal periodically.  This timer counter will run off the internal
+ * clock, and get synchronised to the RTC (somehow.)
  */
 
 #include "wordclock.h"
@@ -249,6 +255,15 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 }
 
 
+/**
+ * Print a time represented by raw DS1307 data.
+ *
+ * We print the time without reference to the tracing state.  It's up to the
+ * caller to check that first, if required.
+ *
+ * @param bytes pointer to at least the first three bytes of DS1307 register
+ * data, in the order read from the device.
+ */
 static void print_time(uint8_t *bytes)
 {
 	uint8_t hoursbyte;
