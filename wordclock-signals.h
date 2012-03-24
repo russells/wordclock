@@ -15,6 +15,10 @@ enum WordclockSignals {
 	TWI_REPLY_1_SIGNAL,
 	TWI_REPLY_2_SIGNAL,
 	CHAR_SIGNAL,
+	/** Sent 20 times a second. */
+	TICK_20TH_SIGNAL,
+	/** Sent by the Wordclock to itself, once per second. */
+	TICK_1S_SIGNAL,
 	MAX_PUB_SIG,
 	MAX_SIG,
 };

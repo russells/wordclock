@@ -105,4 +105,6 @@ SIGNAL(TIMER0_COMP_vect)
 		QActive_postISR((QActive*)(&wordclock), WATCHDOG_SIGNAL, 0);
 		counter = 0;
 	}
+	fff(&wordclock);
+	QActive_postISR((QActive*)(&wordclock), TICK_20TH_SIGNAL, 0);
 }
