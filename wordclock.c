@@ -32,10 +32,12 @@ Q_DEFINE_THIS_FILE;
 static QState wordclockInitial        (struct Wordclock *me);
 static QState wordclockState          (struct Wordclock *me);
 static QState wordclockSetClockState  (struct Wordclock *me);
-static QState wordclockLEDOnState     (struct Wordclock *me);
-static QState wordclockLEDOffState    (struct Wordclock *me);
+static QState wordclockRunningState   (struct Wordclock *me);
 
 static void print_time(uint8_t *bytes);
+static uint8_t is_5min(uint8_t *bytes);
+static int8_t near_5s_diff(struct Wordclock *me, uint8_t *bytes);
+static void setTick1Scounter(struct Wordclock *me, int8_t diff);
 
 
 static QEvent wordclockQueue[5];
@@ -103,6 +105,8 @@ void wordclock_ctor(void)
 	serial_trace_hex_int((unsigned int)(wordclockName));
 	STD("\r\n");
 	wordclock.super.name = wordclockName;
+	wordclock.tick20counter = 0;
+	wordclock.tick1Scounter = 0;
 }
 
 
@@ -138,6 +142,19 @@ static QState wordclockState(struct Wordclock *me)
 		}
 		S(" in workclockState\r\n");
 		return Q_HANDLED();
+
+	case TICK_20TH_SIGNAL:
+		/**
+		 * @todo When we have the UI that handles button press
+		 * interrupts, move the TICK_20TH_SIGNAL handler there.  It's
+		 * not needed in Wordclock now that we have interrupts from the
+		 * RTC square wave output.
+		 */
+		me->tick20counter ++;
+		if (20 == me->tick20counter) {
+			fff(me);
+			me->tick20counter = 0;
+		}
 	}
 	return Q_SUPER(&QHsm_top);
 }
@@ -162,7 +179,7 @@ static QState wordclockSetClockState(struct Wordclock *me)
 		me->twiBuffer1[5] = 0x01; /* 1st */
 		me->twiBuffer1[6] = 0x01; /* January */
 		me->twiBuffer1[7] = 0x01; /* 2001 */
-		me->twiBuffer1[8] = 0x00; /* No square wave */
+		me->twiBuffer1[8] = (1<<7) | (1<<4); /* 1Hz square wave */
 
 		me->twiRequest1.nbytes = 9;
 		me->twiRequest1.count = 0;
@@ -177,21 +194,39 @@ static QState wordclockSetClockState(struct Wordclock *me)
 		ST("WC Got TWI_REPLY_1_SIGNAL in set: status=");
 		serial_trace_int(me->twiRequest1.status);
 		STD("\r\n");
-		return Q_TRAN(wordclockLEDOnState);
+		return Q_TRAN(wordclockRunningState);
+
+	case Q_EXIT_SIG:
+		me->tick1Scounter = 5;
+		return Q_HANDLED();
 
 	}
 	return Q_SUPER(wordclockState);
 }
 
 
-static QState wordclockLEDOnState(struct Wordclock *me)
+static QState wordclockRunningState(struct Wordclock *me)
 {
 	uint8_t status;
 
 	switch (Q_SIG(me)) {
 
 	case Q_ENTRY_SIG:
-		BSP_ledOn();
+		STD("Running...");
+		enable_1hz_interrupts(1);
+		STD(" RTC SQW interrupts on\r\n");
+		return Q_HANDLED();
+
+	case TICK_1S_SIGNAL:
+
+		ST("WC 1S\r\n");
+
+		me->interval_5min ++;
+
+		me->tick1Scounter --;
+		if (me->tick1Scounter) {
+			return Q_HANDLED();
+		}
 
 		me->twiRequest1.qactive = (QActive*)me;
 		me->twiRequest1.signal = TWI_REPLY_1_SIGNAL;
@@ -220,7 +255,7 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 	case TWI_REPLY_1_SIGNAL:
 		if (tracing()) {
 			status = me->twiRequest1.status;
-			ST("WC Got TWI_REPLY_1_SIGNAL in on: status=");
+			ST("WC Got TWI_REPLY_1_SIGNAL in running: status=");
 			serial_trace_int(me->twiRequest1.status);
 			if (status) {
 				ST(": ");
@@ -233,7 +268,7 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 	case TWI_REPLY_2_SIGNAL:
 		if (tracing()) {
 			status = me->twiRequest2.status;
-			ST("WC Got TWI_REPLY_2_SIGNAL in on: status=");
+			ST("WC Got TWI_REPLY_2_SIGNAL in running: status=");
 			serial_trace_int(status);
 			ST(" ");
 			if (! status) {
@@ -257,13 +292,77 @@ static QState wordclockLEDOnState(struct Wordclock *me)
 				serial_trace_rom(twi_status_string(status));
 				ST("\r\n");
 			}
+			ST("\r\n");
+		} else if (is_5min(me->twiBuffer2)) {
+			me->interval_5min = 0;
+			S("time=");
+			print_time(me->twiBuffer2);
+			S("\r\n");
 		}
+		setTick1Scounter(me, near_5s_diff(me, me->twiRequest2.bytes));
 		return Q_HANDLED();
 
-	case Q_TIMEOUT_SIG:
-		return Q_TRAN(wordclockLEDOffState);
 	}
 	return Q_SUPER(wordclockState);
+}
+
+
+/**
+ * Tell us if we are on an hour boundary.
+ */
+static uint8_t is_5min(uint8_t *bytes)
+{
+	return ((bytes[0]==0)      &&
+		( ((bytes[1] & 0x0f) == 0x00) ||
+		  ((bytes[1] & 0x0f) == 0x05)));
+}
+
+
+/**
+ * Tell us which way we are from a five second boundary.
+ *
+ * @param bytes pointer to a byte read from the first DS1307.
+ *
+ * @return 0 if the time is on a five second boundary; -1 or -2 if it's before
+ * a five second boundary; +1 or +2 if it's after a five second boundary.
+ */
+static int8_t near_5s_diff(struct Wordclock *me, uint8_t *bytes)
+{
+	uint8_t sec;
+	int8_t diff = 99;
+
+	sec = (*bytes) & 0x0f;
+	if (sec >= 10) {
+		sec -= 10;
+	}
+	if (sec >= 5) {
+		sec -= 5;
+	}
+	switch (sec) {
+	case 4: diff = -1; break;
+	case 3: diff = -2; break;
+	case 2: diff =  2; break;
+	case 1: diff =  1; break;
+	case 0: diff =  0; break;
+	}
+	if (diff) {
+		S("-- diff = ");
+		serial_send_int(diff);
+		S(" at ");
+		print_time(bytes);
+		S(" interval = ");
+		serial_send_int(me->interval_5min);
+		S("\r\n");
+	}
+	return diff;
+}
+
+
+static void setTick1Scounter(struct Wordclock *me, int8_t diff)
+{
+	Q_ASSERT( diff < 3 );
+	Q_ASSERT( diff > -3 );
+	me->tick1Scounter = 5 - diff;
 }
 
 
@@ -315,32 +414,4 @@ static void print_time(uint8_t *bytes)
 	} else {
 		S(" (24)");
 	}
-}
-
-
-static QState wordclockLEDOffState(struct Wordclock *me)
-{
-	switch (Q_SIG(me)) {
-
-	case Q_ENTRY_SIG:
-		BSP_ledOff();
-		QActive_arm((QActive*)me, 30);
-		return Q_HANDLED();
-
-	case TWI_REPLY_1_SIGNAL:
-		S("WC Got TWI_REPLY_1_SIGNAL in off: status=");
-		serial_send_int(me->twiRequest1.status);
-		S("\r\n");
-		return Q_HANDLED();
-
-	case TWI_REPLY_2_SIGNAL:
-		S("WC got TWI_REPLY_2_SIGNAL in off: status=");
-		serial_send_int(me->twiRequest2.status);
-		S("\r\n");
-		return Q_HANDLED();
-
-	case Q_TIMEOUT_SIG:
-		return Q_TRAN(wordclockLEDOnState);
-	}
-	return Q_SUPER(wordclockState);
 }

@@ -45,4 +45,6 @@ void BSP_init(void);
 void BSP_ledOn();
 void BSP_ledOff();
 
+void enable_1hz_interrupts(uint8_t onoff);
+
 #endif	/* bsp_h_INCLUDED */
