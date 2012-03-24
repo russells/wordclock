@@ -107,6 +107,7 @@ void wordclock_ctor(void)
 	wordclock.super.name = wordclockName;
 	wordclock.tick20counter = 0;
 	wordclock.tick1Scounter = 0;
+	wordclock.data = 0;
 }
 
 
@@ -172,16 +173,22 @@ static QState wordclockSetClockState(struct Wordclock *me)
 		me->twiRequest1.bytes = me->twiBuffer1;
 
 		me->twiBuffer1[0] = 0;	 /* register address */
-		me->twiBuffer1[1] = 0x50; /* CH=0, seconds = 50 */
-		me->twiBuffer1[2] = 0x59; /* 59 minutes */
-		me->twiBuffer1[3] = 0x65; /* 12hr, 5pm */
-		me->twiBuffer1[4] = 0x07; /* Sunday */
-		me->twiBuffer1[5] = 0x01; /* 1st */
-		me->twiBuffer1[6] = 0x01; /* January */
-		me->twiBuffer1[7] = 0x01; /* 2001 */
-		me->twiBuffer1[8] = (1<<7) | (1<<4); /* 1Hz square wave */
-
-		me->twiRequest1.nbytes = 9;
+		if (me->data) {
+			me->twiBuffer1[1] = me->data[0];
+			me->twiBuffer1[2] = me->data[1];
+			me->twiBuffer1[3] = me->data[2];
+			me->twiRequest1.nbytes = 4;
+		} else {
+			me->twiBuffer1[1] = 0x50; /* CH=0, seconds = 50 */
+			me->twiBuffer1[2] = 0x59; /* 59 minutes */
+			me->twiBuffer1[3] = 0x65; /* 12hr, 5pm */
+			me->twiBuffer1[4] = 0x07; /* Sunday */
+			me->twiBuffer1[5] = 0x01; /* 1st */
+			me->twiBuffer1[6] = 0x01; /* January */
+			me->twiBuffer1[7] = 0x01; /* 2001 */
+			me->twiBuffer1[8] = (1<<7) | (1<<4); /* 1Hz sqw */
+			me->twiRequest1.nbytes = 9;
+		}
 		me->twiRequest1.count = 0;
 		fff(&twi);
 		me->twiRequestAddresses[0] = &(me->twiRequest1);
@@ -198,6 +205,7 @@ static QState wordclockSetClockState(struct Wordclock *me)
 
 	case Q_EXIT_SIG:
 		me->tick1Scounter = 5;
+		me->data = 0;
 		return Q_HANDLED();
 
 	}
@@ -220,6 +228,10 @@ static QState wordclockRunningState(struct Wordclock *me)
 		ST("WC 1S\r\n");
 
 		me->interval_5min ++;
+
+		if (me->data) {
+			return Q_TRAN(wordclockSetClockState);
+		}
 
 		me->tick1Scounter --;
 		if (me->tick1Scounter) {
@@ -287,6 +299,10 @@ static QState wordclockRunningState(struct Wordclock *me)
 			S("\r\n");
 		}
 		setTick1Scounter(me, near_5s_diff(me, me->twiRequest2.bytes));
+		return Q_HANDLED();
+
+	case SET_TIME_SIGNAL:
+		me->data = (uint8_t *) Q_PAR(me);
 		return Q_HANDLED();
 
 	}

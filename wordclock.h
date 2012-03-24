@@ -22,6 +22,7 @@ struct Wordclock {
 	uint8_t tick20counter;
 	uint8_t tick1Scounter;
 	uint16_t interval_5min;
+	uint8_t *data;
 	struct TWIRequest twiRequest1;
 	struct TWIRequest twiRequest2;
 	/** This contains the addresses of one or both of the TWIRequests

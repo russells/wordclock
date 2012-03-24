@@ -19,6 +19,9 @@ enum WordclockSignals {
 	TICK_20TH_SIGNAL,
 	/** Sent by the Wordclock to itself, once per second. */
 	TICK_1S_SIGNAL,
+	/** Sent when we need to set the time.  Parameter is a pointer to (at
+	    least) three bytes in DS1307 format. */
+	SET_TIME_SIGNAL,
 	MAX_PUB_SIG,
 	MAX_SIG,
 };
