@@ -10,6 +10,7 @@ Q_DEFINE_THIS_FILE;
 
 
 static void start_tick_timer(void);
+static void enable_rtc_sqw_interrupts(void);
 
 
 void QF_onStartup(void)
@@ -48,6 +49,9 @@ void BSP_init(void)
 	PINA |= (1 << 1);
 
 	start_tick_timer();
+
+	enable_1hz_interrupts(0);
+	enable_rtc_sqw_interrupts();
 
 	sei();
 
@@ -107,4 +111,40 @@ SIGNAL(TIMER0_COMP_vect)
 	}
 	fff(&wordclock);
 	QActive_postISR((QActive*)(&wordclock), TICK_20TH_SIGNAL, 0);
+}
+
+
+static uint8_t send_1hz_interrupts = 0;
+
+
+void enable_1hz_interrupts(uint8_t onoff)
+{
+	send_1hz_interrupts = onoff;
+}
+
+
+SIGNAL(INT2_vect)
+{
+	if (send_1hz_interrupts) {
+		fff(&wordclock);
+		QActive_postISR((QActive*)(&wordclock), TICK_1S_SIGNAL, 0);
+	}
+}
+
+
+/**
+ * Enable the CPI interrupts for the RTC square wave.
+ *
+ * This disables and then reenables interrupts, so we assume it's called from
+ * main line code, with interrupts on.
+ */
+static void enable_rtc_sqw_interrupts(void)
+{
+	cli();
+	GICR &= ~(1 << INT2);	 /* Disable INT2 interrupts */
+	DDRB &= ~ (1 << 2);	 /* Make INT2 an input */
+	PORTB |= (1 << 2);	 /* Enable INT2 pullup */
+	MCUCSR &= ~ (1 << ISC2); /* INT2 in falling edge */
+	GICR |= (1 << INT2);	 /* Enable INT2 interrupts */
+	sei();
 }
