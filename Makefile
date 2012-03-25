@@ -28,6 +28,12 @@ else
 AVRDUDE_NO_VERIFY_FLAG = -V
 endif
 
+ifeq ($(WORDCLOCK_TRACING),)
+WORDCLOCK_TRACING_FLAG = -UWORDCLOCK_TRACING
+else
+WORDCLOCK_TRACING_FLAG = -DWORDCLOCK_TRACING
+endif
+
 QPN_INCDIR = qp-nano/include
 QP_LIBDIR = $(QP_PRTDIR)/$(BINDIR)
 QP_SRCDIR = qp-nano/source
@@ -38,6 +44,7 @@ TARGET_MCU = atmega32
 CFLAGS  = -c -gdwarf-2 -std=gnu99 -Os -fsigned-char -fshort-enums \
 	-Wno-attributes \
 	-mmcu=$(TARGET_MCU) -Wall -Werror -o$@ \
+	$(WORDCLOCK_TRACING_FLAG) \
 	-I$(QPN_INCDIR) -I.
 LINKFLAGS = -gdwarf-2 -Os -mmcu=$(TARGET_MCU)
 

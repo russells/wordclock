@@ -10,7 +10,11 @@
 Q_DEFINE_THIS_FILE;
 
 
+#ifdef WORDCLOCK_TRACING
 uint8_t trace = 1;
+#else
+uint8_t trace = 0;
+#endif
 
 
 void traceon(void) { trace = 1; }
