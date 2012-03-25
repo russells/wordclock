@@ -171,15 +171,35 @@ static void fn_SET(const char *line)
 {
 	static uint8_t bytes[3];
 
-	if (line[3] != ' ' ||
-	    line[4]  < '0' || line[4]  > '1' ||
-	    line[5]  < '0' || line[5]  > '9' || line[6]  != ':' ||
-	    line[7]  < '0' || line[7]  > '9' ||
-	    line[8]  < '0' || line[8]  > '9' || line[9]  != ':' ||
-	    line[10] < '0' || line[10] > '9' ||
-	    line[11] < '0' || line[11] > '9' || line[12] != ' ' ||
-	    (line[13] != 'A' && line[13] != 'P') ||
-	    line[14] != '\0') {
+#define SP1 3
+#define Hr1 4
+#define Hr2 5
+#define MiC 6
+#define Mi1 7
+#define Mi2 8
+#define SeC 9
+#define Se1 10
+#define Se2 11
+#define SP2 12
+#define AoP 13
+#define END 14
+
+	if (
+	    /* Check that the line matches the syntax */
+	    line[SP1] != ' ' ||
+	    line[Hr1]  < '0' || line[Hr1]  > '1' ||
+	    line[Hr2]  < '0' || line[Hr2]  > '9' || line[MiC]  != ':' ||
+	    line[Mi1]  < '0' || line[Mi1]  > '5' ||
+	    line[Mi2]  < '0' || line[Mi2]  > '9' || line[SeC]  != ':' ||
+	    line[Se1]  < '0' || line[Se1]  > '5' ||
+	    line[Se2]  < '0' || line[Se2]  > '9' || line[SP2] != ' ' ||
+	    (line[AoP] != 'A' && line[AoP] != 'P') ||
+	    line[END] != '\0'
+	    ||
+	    /* Check for some extra validity in the hours */
+	    (line[Hr1] == '0' && line[Hr2] == '0') ||
+	    (line[Hr1] == '1' && line[Hr2]  > '2')
+	    ) {
 		S("time invalid\r\n");
 		return;
 	}
