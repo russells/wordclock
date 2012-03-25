@@ -48,7 +48,7 @@ CFLAGS  = -c -gdwarf-2 -std=gnu99 -Os -fsigned-char -fshort-enums \
 	-I$(QPN_INCDIR) -I.
 LINKFLAGS = -gdwarf-2 -Os -mmcu=$(TARGET_MCU)
 
-SRCS = wordclock.c bsp-avr.c qepn.c qfn.c serial.c twi.c twi-status.c commander.c
+SRCS = wordclock.c bsp-avr.c qepn.c qfn.c serial.c twi.c twi-status.c commander.c outputs.c
 
 OBJS = $(SRCS:.c=.o)
 DEPS = $(SRCS:.c=.d)

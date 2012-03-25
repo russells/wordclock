@@ -18,6 +18,7 @@
 #include "twi.h"
 #include "twi-status.h"
 #include "commander.h"
+#include "outputs.h"
 #include "ds1307.h"
 #include "cpu-speed.h"
 #include <util/delay.h>
@@ -38,6 +39,7 @@ static void print_time(uint8_t *bytes);
 static uint8_t is_5min(uint8_t *bytes);
 static int8_t near_5s_diff(struct Wordclock *me, uint8_t *bytes);
 static void setTick1Scounter(struct Wordclock *me, int8_t diff);
+static void turn_on_outputs(uint8_t *bytes);
 
 
 static QEvent wordclockQueue[5];
@@ -87,6 +89,8 @@ int main(int argc, char **argv)
 	commander_ctor();
 	wordclock_ctor();
 	BSP_init(); /* initialize the Board Support Package */
+	outputs_init();
+	outputs_off();
 
 	//Q_ASSERT(0);
 	QF_run();
@@ -201,6 +205,7 @@ static QState wordclockSetClockState(struct Wordclock *me)
 		ST("WC Got TWI_REPLY_1_SIGNAL in set: status=");
 		serial_trace_int(me->twiRequest1.status);
 		STD("\r\n");
+		turn_on_outputs(me->twiBuffer1 + 1);
 		return Q_TRAN(wordclockRunningState);
 
 	case Q_EXIT_SIG:
@@ -266,7 +271,7 @@ static QState wordclockRunningState(struct Wordclock *me)
 		if (tracing()) {
 			ST("WC Got TWI_REPLY_1_SIGNAL in running: status=");
 			serial_trace_int(me->twiRequest1.status);
-			ST("\r\n");
+			STD("\r\n");
 		}
 		return Q_HANDLED();
 
@@ -291,12 +296,15 @@ static QState wordclockRunningState(struct Wordclock *me)
 					print_time(me->twiBuffer2);
 				}
 			}
-			ST("\r\n");
+			STD("\r\n");
+			turn_on_outputs(me->twiBuffer2);
+
 		} else if (is_5min(me->twiBuffer2)) {
 			me->interval_5min = 0;
-			S("time=");
-			print_time(me->twiBuffer2);
-			S("\r\n");
+			//S("time=");
+			//print_time(me->twiBuffer2);
+			//SD("\r\n");
+			turn_on_outputs(me->twiBuffer2);
 		}
 		setTick1Scounter(me, near_5s_diff(me, me->twiRequest2.bytes));
 		return Q_HANDLED();
@@ -309,6 +317,100 @@ static QState wordclockRunningState(struct Wordclock *me)
 	return Q_SUPER(wordclockState);
 }
 
+
+static void turn_on_outputs(uint8_t *bytes)
+{
+	uint8_t seconds;
+	uint8_t minutes;
+	uint8_t hours;
+
+	outputs_off();
+	seconds = bytes[0];
+	minutes = bytes[1];
+	hours = bytes[2];
+	Q_ASSERT( (hours & 0x40) ); /* Ensure we are in 12 hour mode */
+	Q_ASSERT( (hours & 0x0f) <= 9 );
+	Q_ASSERT( (minutes & 0x70) <= 0x50 );
+	Q_ASSERT( (minutes & 0x0f) <= 9 );
+	minutes -= ((minutes & 0x0f) % 5);
+	/* Convert the hours data to a plain number of hours. */
+	hours &= 0x1f;
+	if (hours & 0x10) {
+		hours = (hours & 0x0f) + 10;
+	}
+	if (0 == minutes) {
+		output_on(hours); S(" ");
+		output_on(OCLOCK); S("\r\n");
+	} else if (0x05 == minutes) {
+		output_on(FIVE_MIN); S(" ");
+		output_on(PAST); S(" ");
+		output_on(hours); S("\r\n");
+	} else if (0x10 == minutes) {
+		output_on(TEN_MIN); S(" ");
+		output_on(PAST); S(" ");
+		output_on(hours); S("\r\n");
+	} else if (0x15 == minutes) {
+		output_on(QUARTER); S(" ");
+		output_on(PAST); S(" ");
+		output_on(hours); S("\r\n");
+	} else if (0x20 == minutes) {
+		output_on(TWENTY); S(" ");
+		output_on(PAST); S(" ");
+		output_on(hours); S("\r\n");
+	} else if (0x25 == minutes) {
+		output_on(TWENTY); S(" ");
+		output_on(FIVE_MIN); S(" ");
+		output_on(PAST); S(" ");
+		output_on(hours); S("\r\n");
+	} else if (0x30 == minutes) {
+		output_on(HALF); S(" ");
+		output_on(PAST); S(" ");
+		output_on(hours); S("\r\n");
+	} else {
+		/* It's after half past, so we now display something to the
+		   next hour. */
+		hours ++;
+		if (13 == hours) {
+			hours = 1;
+		}
+		if (0x35 == minutes) {
+			output_on(TWENTY); S(" ");
+			output_on(FIVE_MIN); S(" ");
+			output_on(TO); S(" ");
+			output_on(hours); S("\r\n");
+		} else if (0x40 == minutes) {
+			output_on(TWENTY); S(" ");
+			output_on(TO); S(" ");
+			output_on(hours); S("\r\n");
+		} else if (0x45 == minutes) {
+			output_on(QUARTER); S(" ");
+			output_on(TO); S(" ");
+			output_on(hours); S("\r\n");
+		} else if (0x50 == minutes) {
+			output_on(TEN_MIN); S(" ");
+			output_on(TO); S(" ");
+			output_on(hours); S("\r\n");
+		} else if (0x55 == minutes) {
+			output_on(FIVE_MIN); S(" ");
+			output_on(TO); S(" ");
+			output_on(hours); S("\r\n");
+		} else {
+			S("No outputs selected hex bytes = ");
+			serial_send_hex_int(bytes[0]);
+			S(":");
+			serial_send_hex_int(bytes[1]);
+			S(":");
+			serial_send_hex_int(bytes[2]);
+			S(" s=");
+			serial_send_hex_int(seconds);
+			S(" m=");
+			serial_send_hex_int(minutes);
+			S(" h=");
+			serial_send_hex_int(hours);
+			SD("\r\n");
+		}
+	}
+}
 
 /**
  * Tell us if we are on an hour boundary.
