@@ -1,11 +1,16 @@
-A clock that displays time with words.
+Worldclock is a clock that displays the time with words.
 
-We turn on all the words required to display the (approximate) current time.
-Time will be accurate to within five minutes.  First thought was to use the
-five minute time closest to the current time, so we're never more than 2.5
-minutes out.  Another suggestion was to switch to the correct time at every
+All the words needed to display any possible time are available and only the ones
+required to display the (approximate) current time are turned on.
+The time will be accurate to within five minutes. 
+
+Our first thought was to use the five minute time closest to the current time 
+so we're never more than 2.5 minutes out.  
+
+Another suggestion was to switch to the correct time at every
 five minute boundary, then maintain that to the next five minute boundary.
-Second idea is probably easier to program, and would require less explaining
+
+The second idea is liekly easier to program and would require less explaining
 to people.
 
 
